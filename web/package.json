@@ -10,9 +10,11 @@
     "emulator": "firebase emulators:start --project demo-macro --only auth",
     "sync:ios": "npx cap sync ios",
     "sync:android": "npx cap sync android",
-    "check": "npm run check:build && node scripts/check-model.mjs",
+    "check": "npm run check:build && node scripts/check-model.mjs && npm run check:geometry:run",
     "check:build": "tsc -p tsconfig.check.json && node scripts/prepare-check.mjs",
-    "check:sources": "npm run check:build && node scripts/check-sources.mjs"
+    "check:sources": "npm run check:build && node scripts/check-sources.mjs",
+    "check:geometry": "npm run check:build && npm run check:geometry:run",
+    "check:geometry:run": "npx esbuild src/lib/three/body.ts --bundle --format=esm --outfile=.check3/body.js --alias:@=./src --external:three --log-level=warning && node scripts/check-geometry.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

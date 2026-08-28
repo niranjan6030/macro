@@ -116,6 +116,11 @@ from your logged data first, and the model's only job is to write it up.
 - Built in code, not loaded: no model file, nothing to fetch, no licence
 - Widths calibrated from real circumferences; proportions on the eight-head
   canon, cross-checked against a reference silhouette
+- **The mesh is measured, not eyeballed.** `npm run check:geometry` builds the
+  body and takes calipers to it — bideltoid breadth, waist, hip, knee, ankle,
+  foot length, head depth — against ANSUR II and Pheasant's *Bodyspace*. That
+  harness found a foot 7 cm too short, legs that splayed outward from hip to
+  knee, and a figure 6 cm too wide across the elbows
 
 **The day**
 - Three rings that close, the way Apple's Fitness rings do: calories, protein,
