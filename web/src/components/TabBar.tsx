@@ -16,7 +16,7 @@ const TABS = [
   { href: "/", label: "Today", Icon: Flame },
   { href: "/food", label: "Food", Icon: Camera },
   { href: "/train", label: "Train", Icon: Dumbbell },
-  { href: "/progress", label: "Progress", Icon: Sparkles },
+  { href: "/coach", label: "Macro AI", Icon: Sparkles },
   { href: "/account", label: "You", Icon: User },
 ];
 

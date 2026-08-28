@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Loader2, RefreshCw, Sparkles, CalendarCheck, ArrowLeft } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, CalendarCheck, ArrowLeft, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { get, today } from "@/lib/client";
 import { useResource } from "@/lib/useResource";
 import { TrendChart } from "@/components/Rings";
+import { Chat } from "@/components/Chat";
 import type { CoachResponse } from "@/lib/shape";
 
 /**
@@ -21,6 +22,7 @@ export default function CoachPage() {
   /* `refresh` forces the model to write a new review rather than serving
      today's cached one. It is part of the fetch key so pressing the button
      actually re-requests. */
+  const [tab, setTab] = useState<"review" | "chat">("chat");
   const [refresh, setRefresh] = useState(false);
 
   const fetcher = useCallback(
@@ -28,10 +30,6 @@ export default function CoachPage() {
     [refresh],
   );
   const { data, loading, error, reload } = useResource(fetcher);
-
-  if (loading && !data) {
-    return <div className="grid h-[70vh] place-items-center"><Loader2 className="animate-spin text-[var(--color-mute)]" /></div>;
-  }
 
   const f = data?.findings;
 
@@ -42,20 +40,43 @@ export default function CoachPage() {
                 className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)]">
           <ArrowLeft size={18} />
         </button>
-        <h1 className="display text-3xl">Your review</h1>
+        <h1 className="display text-3xl">Macro AI</h1>
         <button onClick={() => { setRefresh(true); reload(); }} aria-label="Rebuild review"
                 className="ml-auto grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)]">
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
       </header>
 
-      {error && (
+      {tab === "review" && error && (
         <div className="card p-4">
           <p role="alert" className="text-sm text-[var(--color-bad)]">{error}</p>
         </div>
       )}
 
-      {data && (
+      {tab === "review" && loading && !data && (
+        <p className="flex items-center gap-2 py-10 text-sm text-[var(--color-mute)]">
+          <Loader2 className="animate-spin" size={14} /> building your review
+        </p>
+      )}
+
+      {/* Two ways to get the same information: the review reads itself out,
+          the chat answers what you actually wanted to know. */}
+      <div className="flex gap-1 rounded-xl bg-[var(--color-slab-2)] p-1">
+        {([["chat", "Ask", MessageSquare], ["review", "Weekly review", Sparkles]] as const).map(([k, label, Icon]) => (
+          <button key={k} onClick={() => setTab(k)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold"
+                  style={{
+                    background: tab === k ? "var(--color-chalk)" : "transparent",
+                    color: tab === k ? "#000" : "var(--color-mute)",
+                  }}>
+            <Icon size={15} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "chat" && <Chat />}
+
+      {tab === "review" && data && (
         <>
           <section className="card p-5">
             <h2 className="label flex items-center gap-1.5">
@@ -64,7 +85,7 @@ export default function CoachPage() {
             <p className="text-[15px] leading-relaxed">{data.body}</p>
             {data.ai === false && (
               <p className="mt-3 text-xs text-[var(--color-mute)]">
-                Written from your figures. Set ANTHROPIC_API_KEY for a fuller review.
+                Written from your figures. Set an AI key for a fuller review.
               </p>
             )}
           </section>

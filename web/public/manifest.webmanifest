@@ -1,14 +1,24 @@
 {
-  "name": "Macro",
+  "name": "Macro — food, training, progress",
   "short_name": "Macro",
-  "description": "Log food by photo, train to a plan that adapts, and watch the trend.",
+  "description": "Log food by photo, barcode or name. Train to a plan that adapts. Watch the trend.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#06080c",
-  "theme_color": "#06080c",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait",
+  "categories": ["health", "fitness", "lifestyle"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Log food", "short_name": "Log", "url": "/food" },
+    { "name": "Today's session", "short_name": "Train", "url": "/train" },
+    { "name": "Ask Macro AI", "short_name": "Ask", "url": "/coach" }
   ]
 }

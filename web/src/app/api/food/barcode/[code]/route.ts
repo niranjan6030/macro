@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/firebase/admin";
+import { dbConfigured } from "@/lib/db";
 import { off } from "@/lib/nutrition/search";
 
 /**
@@ -13,8 +14,11 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ code: string }> },
 ) {
-  const auth = await requireUser();
-  if ("response" in auth) return auth.response;
+  // Public when running standalone; see the note in ../search/route.ts.
+  if (dbConfigured()) {
+    const auth = await requireUser();
+    if ("response" in auth) return auth.response;
+  }
 
   const { code } = await ctx.params;
   const food = await off.byBarcode(code);

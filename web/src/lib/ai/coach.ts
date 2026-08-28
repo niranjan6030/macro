@@ -1,6 +1,7 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
 import { type Profile, dailyTargets } from "@/lib/fitness/energy";
+import { aiConfigured } from "./provider";
+import { runRound } from "./run";
 import { project } from "@/lib/fitness/projection";
 
 /**
@@ -16,9 +17,7 @@ import { project } from "@/lib/fitness/projection";
  * cheerfully invent an average and congratulate you on it.
  */
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
-
-export const coachConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
+export const coachConfigured = aiConfigured;
 
 export interface WeekData {
   profile: Profile;
@@ -159,17 +158,13 @@ How to write:
 
 export async function review(data: WeekData): Promise<{ findings: Findings; body: string }> {
   const findings = analyse(data);
-  const key = process.env.ANTHROPIC_API_KEY;
-
-  if (!key) return { findings, body: fallback(findings, data.profile) };
+  if (!aiConfigured()) return { findings, body: fallback(findings, data.profile) };
 
   try {
-    const client = new Anthropic({ apiKey: key });
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: 400,
+    const res = await runRound({
       system: SYSTEM,
-      messages: [{
+      maxTokens: 400,
+      history: [{
         role: "user",
         content: JSON.stringify({
           goal: data.profile.goal,
@@ -183,12 +178,7 @@ export async function review(data: WeekData): Promise<{ findings: Findings; body
         }, null, 2),
       }],
     });
-
-    const text = res.content
-      .filter((c): c is Anthropic.TextBlock => c.type === "text")
-      .map((c) => c.text).join("").trim();
-
-    return { findings, body: text || fallback(findings, data.profile) };
+    return { findings, body: res.text || fallback(findings, data.profile) };
   } catch (e) {
     console.error("[coach] review failed", e);
     return { findings, body: fallback(findings, data.profile) };

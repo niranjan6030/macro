@@ -44,8 +44,24 @@ function wrap(e: unknown): never {
   throw new AuthError(message);
 }
 
+/**
+ * Standing in for a signed-in person when there is no Firebase project.
+ *
+ * Every page gates on `user` before it will render anything, which is right
+ * when there are accounts and wrong when there are not — with no project
+ * configured there is nobody to sign in *as*, and the app would sit on the
+ * sign-in screen forever refusing to show itself. This is that person: local
+ * to this browser, owning the data in localStorage, and never sent anywhere.
+ */
+const LOCAL_USER = {
+  uid: "local",
+  displayName: null,
+  email: null,
+  phoneNumber: null,
+} as unknown as User;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(firebaseConfigured ? null : LOCAL_USER);
   const [ready, setReady] = useState(!firebaseConfigured);
   const recaptcha = useRef<RecaptchaVerifier | null>(null);
 
@@ -152,6 +168,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (!firebaseConfigured) {
+      // Nothing to sign out of; clearing the local diary is a separate,
+      // deliberate action on the account screen.
+      return;
+    }
     const auth = getFirebaseAuth();
     if (auth) await fbSignOut(auth);
     await fetch("/api/auth/session", { method: "DELETE" });

@@ -95,6 +95,13 @@ from your logged data first, and the model's only job is to write it up.
 - Widths calibrated from real circumferences; proportions on the eight-head
   canon, cross-checked against a reference silhouette
 
+**The day**
+- Three rings that close, the way Apple's Fitness rings do: calories, protein,
+  fibre. A ring is a target you can see the end of, and it has a finished state
+  a bar chart never quite gets
+- Going past a target wraps a second lap rather than capping, because being
+  over is information
+
 **The look**
 - Monochrome, on black. The only colour in the app is the photograph of your
   own dinner
@@ -113,18 +120,27 @@ from your logged data first, and the model's only job is to write it up.
 
 ## Getting it running
 
-You need Node 20+. Everything else is optional and the app tells you what is
-missing rather than crashing.
+You need Node 20+.
 
 ```bash
 cd web
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-That gets you a running app that cannot sign anyone in yet. Fill in the
-sections below in order; each one switches on the next layer.
+That is the whole of it. **With no keys at all Macro runs standalone**: it
+skips sign-in, keeps everything in your browser, and the core loop works —
+onboarding, targets, the figure, food search, logging, the rings, the
+projection. Food search still reaches the real nutrition databases, because
+those are public.
+
+What standalone mode cannot do is sync between devices, recognise a photo, or
+run Macro AI. Those need the sections below. Fill them in in order; each one
+switches on the next layer, and nothing breaks while they are empty.
+
+```bash
+cp .env.example .env.local     # when you are ready to connect the backend
+```
 
 ### 1. Firebase — sign-in
 
@@ -169,12 +185,23 @@ all access runs through route handlers that verify the session cookie and then
 scope the query by uid themselves. The service-role key never leaves the
 server.
 
-### 3. Anthropic — photo recognition and the written review
+### 3. An AI key — photo recognition and Macro AI
 
-Get a key at [console.anthropic.com](https://console.anthropic.com) and set
-`ANTHROPIC_API_KEY`.
+Unlocks: photographing a meal, and Macro AI, the coach you can talk to.
 
-Without it, search and barcode logging work exactly as well, and the weekly
+Either provider works; whichever key is set is the one used.
+
+| | Key | Cost |
+|---|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` from [console.anthropic.com](https://console.anthropic.com) | Paid, fractions of a cent per photo |
+| Google | `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com/apikey) | Free tier, with a rate limit |
+
+**Read this before choosing free.** On Google's free tier your prompts and
+responses may be used to improve their models. This app sends photographs of
+your meals, and Macro AI sees your weight and your diary. On either paid tier
+that does not happen. Progress photos are never sent to any model either way.
+
+Without a key: search and barcode logging work exactly as well, and the weekly
 review still reports all of your figures — it just is not written up.
 
 ### 4. USDA FoodData Central — whole foods
@@ -220,22 +247,22 @@ npm run build     # production build
 
 ---
 
-## iOS and Android
+## Installing it on your phone
 
-Both are Capacitor shells around the deployed site. They are more than a web
-view: the native camera, haptics on logging a set, a native splash screen and
-the system status bar.
+Macro is a progressive web app, which is the right shape for it: one codebase,
+one deploy, no store review, and it updates the moment you push. Installed, it
+runs full screen with no browser bar and opens offline.
 
-```bash
-export MACRO_APP_URL=https://your-deployment.example.com
+- **Android / Chrome / Edge** — a card appears on the You screen with an
+  **Install** button. Or use the browser's own ⋮ → *Install app*.
+- **iPhone / Safari** — Apple has no install API, so it has to be done by
+  hand: **Share** → **Add to Home Screen**. The You screen says so on iOS.
 
-npm run sync:ios      # then: npx cap open ios
-npm run sync:android  # then: npx cap open android
-```
+It needs to be served over HTTPS, which any real deployment is.
 
-Xcode is needed for iOS, Android Studio for Android. Camera and photo-library
-permission strings are already set in `ios/App/App/Info.plist` and
-`android/app/src/main/AndroidManifest.xml`.
+The Capacitor shells in `web/ios` and `web/android` still build if you ever
+want to put it in a store — `npm run sync:ios`, `npm run sync:android`, with
+`MACRO_APP_URL` pointing at your deployment. They are not the main path.
 
 ---
 

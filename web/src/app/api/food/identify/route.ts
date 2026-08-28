@@ -10,9 +10,9 @@ import { identify, visionConfigured } from "@/lib/ai/identify";
  * guess into their history as if it were a measurement.
  */
 export const POST = withUser(async (_uid, req) => {
-  if (!visionConfigured) {
+  if (!visionConfigured()) {
     return fail(
-      "Photo recognition is not switched on. Set ANTHROPIC_API_KEY, or search for the food by name.",
+      "Photo recognition is not switched on. Set ANTHROPIC_API_KEY or GEMINI_API_KEY, or search for the food by name.",
       503,
     );
   }

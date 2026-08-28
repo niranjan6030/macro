@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ActivityRings, RingKey, type Ring } from "@/components/ActivityRings";
 import type { DayResponse } from "@/lib/shape";
 
 /**
@@ -28,16 +29,37 @@ export function ScrollStory({ data }: { data: DayResponse }) {
 
   const over = rem.kcal < 0;
 
+  /* Three rings, the way a day divides: what you ate, whether you got the
+     protein, and whether you trained. Told apart by radius and brightness
+     rather than hue, since the app is monochrome. */
+  const rings: Ring[] = [
+    { label: "Calories", value: totals.kcal, target: t.kcal, unit: "kcal", tone: "#ffffff" },
+    { label: "Protein", value: totals.protein, target: t.protein, unit: "g", tone: "#b4b4b4" },
+    { label: "Fibre", value: totals.fibre, target: t.fibre, unit: "g", tone: "#6e6e6e" },
+  ];
+
   return (
     <div className="space-y-[46svh] pb-[30svh]">
-      <Panel>
-        <Eyebrow>Today</Eyebrow>
-        <Big value={Math.abs(rem.kcal)} tone={over ? "warn" : "bright"} />
-        <Caption>{over ? "calories over" : "calories left"}</Caption>
-        <Meter value={totals.kcal} target={t.kcal} />
-        <Note>
-          {Math.round(totals.kcal)} eaten of {t.kcal}. Maintenance is {t.tdee}.
-        </Note>
+      <Panel wide>
+        <ActivityRings rings={rings}>
+          <span className="text-center">
+            <span
+              className="display block text-[2.9rem] leading-none"
+              style={{ color: over ? "var(--color-warn)" : "var(--color-chalk)" }}
+            >
+              {Math.abs(rem.kcal)}
+            </span>
+            <span className="mt-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-mute)]">
+              {over ? "over" : "left"}
+            </span>
+          </span>
+        </ActivityRings>
+        <div className="mx-auto max-w-xs rounded-2xl bg-black/55 p-4 backdrop-blur-sm">
+          <RingKey rings={rings} />
+          <p className="mt-3 border-t border-[var(--color-line)] pt-3 text-[12px] leading-relaxed text-[var(--color-mute)]">
+            {Math.round(totals.kcal)} eaten of {t.kcal}. Maintenance is {t.tdee}.
+          </p>
+        </div>
       </Panel>
 
       <Panel>
@@ -112,7 +134,7 @@ export function ScrollStory({ data }: { data: DayResponse }) {
 
 /* ------------------------------------------------------------------ */
 
-function Panel({ children }: { children: React.ReactNode }) {
+function Panel({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const [shown, setShown] = useState(false);
 
@@ -132,7 +154,7 @@ function Panel({ children }: { children: React.ReactNode }) {
   return (
     <section
       ref={ref}
-      className="min-h-[54svh] max-w-xs space-y-2"
+      className={`min-h-[54svh] ${wide ? "space-y-6" : "max-w-xs space-y-2"}`}
       style={{
         opacity: shown ? 1 : 0.12,
         transform: shown ? "translateY(0)" : "translateY(14px)",
@@ -156,7 +178,11 @@ function Big({ value, suffix, tone = "bright", size = "big" }: {
   return (
     <p
       className={`display leading-none ${size === "big" ? "text-[4.6rem]" : "text-5xl"}`}
-      style={{ color: tone === "warn" ? "var(--color-warn)" : "var(--color-chalk)" }}
+      style={{
+        color: tone === "warn" ? "var(--color-warn)" : "var(--color-chalk)",
+        // The figure is lit clay; type over it needs its own contrast.
+        textShadow: "0 2px 24px rgba(0,0,0,0.95)",
+      }}
     >
       {value}
       {suffix && <span className="ml-1 font-sans text-lg not-italic">{suffix}</span>}
@@ -169,7 +195,10 @@ const Caption = ({ children }: { children: React.ReactNode }) => (
 );
 
 const Note = ({ children }: { children: React.ReactNode }) => (
-  <p className="pt-1 text-[13px] leading-relaxed text-[var(--color-mute)]">{children}</p>
+  <p className="pt-1 text-[13px] leading-relaxed text-[var(--color-mute)]"
+     style={{ textShadow: "0 1px 12px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.9)" }}>
+    {children}
+  </p>
 );
 
 /** A hairline of progress. Overfills past the target rather than capping. */
