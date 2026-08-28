@@ -39,7 +39,7 @@ function FoodLogger() {
                 className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)]">
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-xl font-bold">Add food</h1>
+        <h1 className="display text-3xl">Add food</h1>
         {saved > 0 && (
           <span className="chip ml-auto" style={{ color: "var(--color-volt)" }}>
             <Check size={12} /> {saved} logged
@@ -54,7 +54,7 @@ function FoodLogger() {
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold"
                     style={{
                       background: tab === k ? "var(--color-volt)" : "transparent",
-                      color: tab === k ? "#0a0f04" : "var(--color-mute)",
+                      color: tab === k ? "#000" : "var(--color-mute)",
                     }}>
               <Icon size={15} /> {label}
             </button>

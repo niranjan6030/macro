@@ -22,7 +22,7 @@ export default function ProgressPage() {
   return (
     <div className="space-y-4 py-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
+        <h1 className="display text-3xl">Progress</h1>
         <Link href="/coach" className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-volt)]">
           <Sparkles size={15} /> Review
         </Link>
@@ -34,7 +34,7 @@ export default function ProgressPage() {
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold"
                   style={{
                     background: tab === k ? "var(--color-volt)" : "transparent",
-                    color: tab === k ? "#0a0f04" : "var(--color-mute)",
+                    color: tab === k ? "#000" : "var(--color-mute)",
                   }}>
             <Icon size={15} /> {label}
           </button>

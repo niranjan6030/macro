@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LogOut, Settings2, Loader2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { SignIn } from "@/components/SignIn";
+import { Landing } from "@/components/Landing";
 import { get } from "@/lib/client";
 import type { ProfileResponse } from "@/lib/shape";
 
@@ -23,24 +23,14 @@ export default function AccountPage() {
     return <div className="grid h-[70vh] place-items-center"><Loader2 className="animate-spin text-[var(--color-mute)]" /></div>;
   }
 
-  if (!user) {
-    return (
-      <div className="py-12">
-        <h1 className="text-3xl font-bold tracking-tight">Macro</h1>
-        <p className="mt-2 mb-8 text-[var(--color-mute)]">
-          Log food by photo, train to a plan that adapts, and watch the trend.
-        </p>
-        <Suspense fallback={null}><SignIn /></Suspense>
-      </div>
-    );
-  }
+  if (!user) return <Landing />;
 
   const p = data?.profile;
 
   return (
     <div className="space-y-4 py-8">
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="display text-3xl">
           {p?.display_name ?? user.displayName ?? "Your account"}
         </h1>
         <p className="text-sm text-[var(--color-mute)]">

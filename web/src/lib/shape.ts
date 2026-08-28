@@ -12,7 +12,10 @@ import type { Projection } from "@/lib/fitness/projection";
 import type { StoredProfile, Day, DiaryEntry, PhotoRow, Measurement } from "@/lib/db";
 import type { Exercise, Prescription } from "@/lib/fitness/training";
 
-export type { Nutrients, Food, Targets, Projection, StoredProfile, Day, DiaryEntry, PhotoRow, Measurement };
+export type {
+  Nutrients, Food, Targets, Projection, StoredProfile, Day, DiaryEntry,
+  PhotoRow, Measurement,
+};
 
 export interface ProfileResponse {
   profile: StoredProfile | null;
@@ -20,6 +23,15 @@ export interface ProfileResponse {
   weightKg: number | null;
   targets: (Targets & { overridden: boolean }) | null;
   projection: Projection | null;
+}
+
+/** One week of the projection, in the shape the figure wants. */
+export interface ProjectedWeek {
+  week: number;
+  weightKg: number;
+  bodyFatPct: number;
+  leanKg: number;
+  tdee: number;
 }
 
 export interface DayResponse {

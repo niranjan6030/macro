@@ -183,7 +183,7 @@ export default function Onboarding() {
       {step === 4 && result?.targets && (
         <div className="space-y-5">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">You are set up.</h1>
+            <h1 className="display text-3xl">You are set up.</h1>
             <p className="mt-1 text-sm text-[var(--color-mute)]">
               These are calculated from your numbers, not from a lookup table. They will
               move as your weight does.
@@ -191,8 +191,9 @@ export default function Onboarding() {
           </div>
 
           <div className="card p-4">
-            <p className="num text-4xl font-bold text-[var(--color-volt)]">
-              {result.targets.kcal}<span className="ml-1 text-base font-normal text-[var(--color-mute)]">kcal/day</span>
+            <p className="display text-6xl text-[var(--color-volt)]">
+              {result.targets.kcal}
+              <span className="ml-2 font-sans text-sm not-italic text-[var(--color-mute)]">kcal/day</span>
             </p>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <Stat label="Protein" value={`${result.targets.protein} g`} />
@@ -239,7 +240,7 @@ function Step({ title, hint, children }: { title: string; hint: string; children
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="display text-3xl">{title}</h1>
         <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-mute)]">{hint}</p>
       </div>
       {children}
