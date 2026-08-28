@@ -24,6 +24,7 @@
     "@capacitor/status-bar": "^8.0.3",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "@types/three": "^0.185.4",
     "clsx": "^2.1.1",
     "firebase": "^12.18.0",
     "firebase-admin": "^14.3.0",
@@ -32,6 +33,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
+    "three": "^0.185.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

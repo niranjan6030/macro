@@ -74,6 +74,19 @@ from your logged data first, and the model's only job is to write it up.
 - Reps in reserve, estimated 1RM, weekly hard sets per muscle
 - Rest days and cheat days are first-class, recorded rather than hidden
 
+**The look**
+- Monochrome, on black. The only colour in the app is the photograph of your
+  own dinner
+- A 3D figure stands behind every screen and turns as you scroll
+- It is built in code, not loaded: about sixty numbers describing the body's
+  cross-section at each height, lofted into a surface. No model file, nothing
+  to fetch, no licence
+- Proportions are measured off a reference silhouette — eight heads tall,
+  shoulders 0.118 of height at the half-width, limbs far slimmer than they
+  first seem
+- Display type is Instrument Serif italic, and the headline crosses the figure
+  rather than sitting beside it
+
 **Progress**
 - Front, side and back photos in a private bucket, served through URLs that
   expire in ten minutes, never shown to the AI
@@ -219,12 +232,17 @@ web/src/lib/
   fitness/energy.ts        BMR, TDEE, macro targets
   fitness/projection.ts    week-by-week bodyweight simulation
   fitness/training.ts      exercise library, splits, progression
+  three/body.ts            the figure, lofted from cross-sections
   nutrition/types.ts       the canonical per-100 g shape, and plausibility
   nutrition/indian.ts      Indian staples as eaten
   nutrition/openfoodfacts.ts, usda.ts, search.ts
   ai/identify.ts           photo → foods + portions (never calories)
   ai/coach.ts              findings computed in code, written up by the model
   db.ts                    every read and write, scoped by uid
+web/src/components/
+  Scene.tsx                the figure, scroll-driven rotation, drifting dust
+  Cosmos.tsx               grain and the corner frame
+  Landing.tsx              the signed-out screen
 web/src/app/api/           route handlers; each verifies the session first
 web/src/app/               Today, Food, Train, Progress, Coach, onboarding
 ```
@@ -241,6 +259,10 @@ web/src/app/               Today, Food, Train, Progress, Coach, onboarding
   precision it does not have.
 - **Open Food Facts is crowd-sourced.** Entries are checked against their own
   Atwater arithmetic before use, which catches gross errors but not subtle ones.
+- **The figure is scenery, not a scan of you.** It is one fixed athletic
+  build. Driving its proportions from your own lean mass and body fat would be
+  straightforward — the shape is already generated from numbers — but it does
+  not do that yet.
 - **None of this is medical advice.** The safety floors and rate caps are there
   for a reason. If something here disagrees with your doctor, your doctor is
   right.

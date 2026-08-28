@@ -43,7 +43,7 @@ export default function TrainPage() {
     <div className="space-y-4 py-6">
       <header>
         <p className="label mb-1">{plan?.splitLabel}</p>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="display text-3xl">
           {plan?.restDay ? "Rest day" : plan?.session?.name ?? "Training"}
         </h1>
       </header>

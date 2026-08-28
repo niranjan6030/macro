@@ -2,33 +2,48 @@
 
 /*
  * Macro is used in two places: at a table, and standing in a gym holding a
- * phone with one hand. The second one drives the design — large tap targets,
- * numbers readable at arm's length, and a dark ground that does not blind
- * anyone at 6am or wash out under gym strip lighting.
+ * phone in one hand. The second one drives the layout — large tap targets,
+ * numbers readable at arm's length, a dark ground that neither blinds anyone
+ * at 6am nor washes out under gym strip lighting.
+ *
+ * The mood is borrowed from a deep violet-black night sky: the figure on the
+ * home screen is lit against it like an object in space. That treatment is
+ * spent on the two screens where it earns its keep — the daily view and
+ * progress — while the lists and forms stay plain, because atmosphere costs
+ * legibility and a food diary is read every day.
  */
 
 @theme {
-  --color-ink: #06080c;          /* page */
-  --color-slab: #0e131b;         /* cards */
-  --color-slab-2: #161d28;       /* raised */
-  --color-line: #232c3a;
-  --color-mute: #7d8899;
-  --color-chalk: #eef2f7;
+  /* Monochrome throughout. The only thing with colour is the photograph of
+     your own dinner, which is the point — everything else gets out of its way,
+     and a greyscale interface stays legible under any gym lighting. */
+  --color-ink: #000000;          /* page */
+  --color-ink-deep: #000000;     /* vignette */
+  --color-haze: #1a1a1a;         /* the glow behind the figure */
+  --color-slab: #0b0b0b;         /* cards */
+  --color-slab-2: #141414;       /* raised */
+  --color-line: #262626;
+  --color-mute: #7a7a7a;
+  --color-chalk: #f2f2f2;
 
-  --color-volt: #c8ff2d;         /* the one accent: targets, progress, action */
-  --color-volt-dim: #8aab1f;
+  /* "Accent" is simply white. Anything that means progress or action is the
+     brightest thing on screen; everything else is dimmer. */
+  --color-volt: #ffffff;
+  --color-volt-dim: #a3a3a3;
 
-  --color-protein: #4ea8ff;
-  --color-carbs: #ffb648;
-  --color-fat: #ff6b8a;
-  --color-fibre: #57d9a3;
+  /* Macro bars are separated by value, not by hue. */
+  --color-protein: #f2f2f2;
+  --color-carbs: #b8b8b8;
+  --color-fat: #8a8a8a;
+  --color-fibre: #5e5e5e;
 
-  --color-warn: #ffb648;
-  --color-bad: #ff6b8a;
+  --color-warn: #b8b8b8;
+  --color-bad: #ffffff;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* Tabular figures matter here: a weight that jumps sideways as it counts
-     up reads as broken. */
+  --font-sans: var(--font-display-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* High-contrast serif italic, for the one line per screen that sets the tone. */
+  --font-serif: var(--font-display-serif), ui-serif, Georgia, serif;
+  /* Tabular figures: a weight that shifts sideways as it counts reads as broken. */
   --font-num: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
   --radius-card: 18px;
@@ -41,22 +56,36 @@ html {
 }
 
 body {
-  background: var(--color-ink);
+  /* Deliberately transparent, and this is load-bearing.
+   *
+   * The 3D scene is a fixed element at a negative z-index. In CSS painting
+   * order, negative-z descendants are drawn before the backgrounds of
+   * non-positioned block boxes — which means an opaque background on <body>
+   * paints straight over the canvas and the whole scene vanishes. The black
+   * lives on <html> instead, which is painted first and stays behind. */
+  background: transparent;
   color: var(--color-chalk);
   font-family: var(--font-sans);
-  /* Room for the tab bar, plus the home indicator on an iPhone. */
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
   overscroll-behavior-y: none;
 }
 
-/* The native shell sits under the status bar. */
 .safe-top { padding-top: env(safe-area-inset-top); }
 
 @layer components {
+  .display {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.02;
+  }
+
   .card {
-    background: var(--color-slab);
+    background: color-mix(in srgb, var(--color-slab) 82%, transparent);
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
+    backdrop-filter: blur(6px);
   }
 
   .num {
@@ -75,9 +104,9 @@ body {
   .btn:active { transform: scale(0.98); }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  .btn-primary { background: var(--color-volt); color: #0a0f04; }
+  .btn-primary { background: var(--color-chalk); color: #000; }
   .btn-ghost {
-    background: var(--color-slab-2);
+    background: color-mix(in srgb, var(--color-slab-2) 70%, transparent);
     color: var(--color-chalk);
     border: 1px solid var(--color-line);
   }
@@ -89,20 +118,17 @@ body {
     border-radius: 12px;
     padding: 0 0.9rem;
     color: var(--color-chalk);
-    font-size: 1rem;                 /* under 16px, iOS zooms the whole page */
+    font-size: 1rem;                 /* below 16px, iOS zooms the whole page */
   }
-  .field:focus {
-    outline: none;
-    border-color: var(--color-volt-dim);
-  }
+  .field:focus { outline: none; border-color: var(--color-volt-dim); }
   .field::placeholder { color: var(--color-mute); }
 
   .label {
     display: block;
-    font-size: 0.75rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.07em;
+    font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
     color: var(--color-mute);
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.5rem;
   }
 
   .chip {
@@ -110,13 +136,12 @@ body {
     padding: 0.2rem 0.55rem;
     border-radius: 999px;
     font-size: 0.7rem; font-weight: 600;
-    background: var(--color-slab-2);
+    background: color-mix(in srgb, var(--color-slab-2) 70%, transparent);
     border: 1px solid var(--color-line);
     color: var(--color-mute);
   }
 }
 
-/* Respect the system setting rather than animating regardless. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

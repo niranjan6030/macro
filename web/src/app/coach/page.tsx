@@ -42,7 +42,7 @@ export default function CoachPage() {
                 className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)]">
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-xl font-bold">Your review</h1>
+        <h1 className="display text-3xl">Your review</h1>
         <button onClick={() => { setRefresh(true); reload(); }} aria-label="Rebuild review"
                 className="ml-auto grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)]">
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />

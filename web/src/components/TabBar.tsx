@@ -42,7 +42,7 @@ export function TabBar() {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className="flex h-[68px] flex-col items-center justify-center gap-1"
-                style={{ color: active ? "var(--color-volt)" : "var(--color-mute)" }}
+                style={{ color: active ? "var(--color-chalk)" : "var(--color-mute)" }}
               >
                 <Icon size={21} strokeWidth={active ? 2.4 : 1.9} aria-hidden />
                 <span className="text-[10px] font-semibold tracking-wide">{label}</span>

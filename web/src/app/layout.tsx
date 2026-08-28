@@ -1,7 +1,23 @@
 import type { Metadata, Viewport } from "next";
+import { Instrument_Serif, Red_Hat_Display } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { TabBar } from "@/components/TabBar";
+import { Frame, Grain } from "@/components/Cosmos";
+import { Scene } from "@/components/Scene";
 import "./globals.css";
+
+/* One line per screen is set in the serif italic; everything functional is
+   the sans. Loaded through next/font so they are self-hosted and there is no
+   layout shift while a webfont arrives over gym wifi. */
+const serif = Instrument_Serif({
+  subsets: ["latin"], weight: "400", style: "italic",
+  variable: "--font-display-serif", display: "swap",
+});
+
+const sans = Red_Hat_Display({
+  subsets: ["latin"], weight: ["400", "500", "600", "700"],
+  variable: "--font-display-sans", display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Macro — food, training, progress",
@@ -29,10 +45,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body>
+        {/* The figure is the page's background, fixed behind everything. */}
+        <Scene className="pointer-events-none fixed inset-0 -z-20" />
+        <Grain />
+        <Frame />
         <AuthProvider>
-          <main className="mx-auto w-full max-w-lg px-4 safe-top">{children}</main>
+          <main className="safe-top mx-auto w-full max-w-lg px-4">{children}</main>
           <TabBar />
         </AuthProvider>
       </body>

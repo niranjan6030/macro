@@ -52,13 +52,13 @@ export default function TodayPage() {
     <div className="space-y-5 py-6">
       <header className="flex items-center justify-between">
         <button onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)]">
+                className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-line)]">
           <ChevronLeft size={18} />
         </button>
-        <h1 className="text-lg font-bold">{prettyDate(date)}</h1>
+        <h1 className="display text-2xl">{prettyDate(date)}</h1>
         <button onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day"
                 disabled={date >= today()}
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-slab-2)] disabled:opacity-30">
+                className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-line)] disabled:opacity-30">
           <ChevronRight size={18} />
         </button>
       </header>
@@ -66,12 +66,15 @@ export default function TodayPage() {
       {error && <p role="alert" className="card p-4 text-sm text-[var(--color-bad)]">{error}</p>}
 
       {totals && (
-        <section className="card p-5">
-          <CalorieRing eaten={totals.kcal} target={data!.targets?.kcal ?? 0} />
-          <div className="mt-6">
+        <>
+          <section className="pt-2">
+            <CalorieRing eaten={totals.kcal} target={data!.targets?.kcal ?? 0} />
+          </section>
+
+          <section className="card p-4">
             <MacroBars totals={totals} targets={data!.targets} />
-          </div>
-        </section>
+          </section>
+        </>
       )}
 
       {/* Rest and cheat days: recorded honestly, never hidden. */}
