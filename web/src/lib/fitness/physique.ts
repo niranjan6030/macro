@@ -41,6 +41,7 @@ export interface Composition {
 }
 
 export interface Physique {
+  sex: Sex;
   /** 0-1. Lean mass for height. */
   muscularity: number;
   /** 0-1. Body fat. */
@@ -264,21 +265,25 @@ export function physiqueOf(c: Composition): Physique {
   /* Central where there is little muscle to carry it, spread where there is a
      lot of it. Visceral fat goes on first and comes off last, so a low-muscle
      body at 28% is nearly all abdomen. */
-  const centralBias = clamp(0.42 + (1 - muscularity) * 0.45 - adiposity * 0.22, 0, 1);
+  const centralBias = clamp(
+    (male ? 0.52 : 0.24) + (1 - muscularity) * 0.42 - adiposity * 0.20,
+    0, 1,
+  );
 
   /* Move some of the limbs' share of fat into the middle. The total is
      conserved: what comes off an arm goes onto the waist, so the same body
      fat percentage renders as two genuinely different silhouettes depending
      on where that person actually stores it. */
   const pull = adiposity * (centralBias - 0.5) * 0.5;
-  w.thigh -= pull * 0.014;
+  w.thigh -= pull * 0.020;
   w.upperArm -= pull * 0.010;
   w.forearm -= pull * 0.006;
   w.calf -= pull * 0.008;
-  w.waist += pull * 0.020;
-  w.hip += pull * 0.008;
+  w.waist += pull * 0.024;
+  w.hip += pull * 0.004;
 
   return {
+    sex: c.sex,
     muscularity, adiposity, ffmi: round1(ffmi), w, depth, belly, centralBias,
     taper: round2(w.shoulder / w.waist),
     definition,

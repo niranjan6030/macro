@@ -45,6 +45,8 @@ export interface Field {
   kind: "muscle" | "fat" | "form";
   /** Only drawn below the body fat where it would really be visible. */
   needsAbs?: boolean;
+  /** Restrict to one sex. Omit for both. */
+  only?: "male" | "female";
 }
 
 const M = "muscle" as const;
@@ -138,6 +140,22 @@ export const FIELDS: Field[] = [
   { c: [0.042, 0.470, -0.042], r: [0.050, 0.058, 0.08], amp: 0.0155, face: "back", kind: B },
   { c: [0.044, 0.702, 0.050], r: [0.060, 0.048, 0.08], amp: 0.009, face: "front", kind: F },  // chest
   { c: [0.052, 0.400, 0.030], r: [0.050, 0.095, 0.07], amp: 0.009, face: "any", kind: F },    // thigh
+
+  /* Sex-specific fat.
+   *
+   * Men store abdominally and women gluteofemorally, and this is the single
+   * biggest reason two bodies at the same body fat percentage look nothing
+   * alike. Without it a female figure is a male one with different widths,
+   * which is exactly the mistake this whole model exists to avoid. */
+  { c: [0.070, 0.470, -0.020], r: [0.055, 0.070, 0.10], amp: 0.026, face: "any", kind: F, only: "female" },  // hips
+  { c: [0.060, 0.380, 0.000], r: [0.050, 0.090, 0.09], amp: 0.022, face: "any", kind: F, only: "female" },   // outer thigh
+  { c: [0.110, 0.700, 0.000], r: [0.035, 0.060, 0.06], amp: 0.010, face: "any", kind: F, only: "female" },   // upper arm
+  { c: [0.000, 0.640, 0.060], r: [0.070, 0.075, 0.09], amp: 0.020, face: "front", kind: F, only: "male" },   // upper belly
+
+  /* Female form that is not fat: a narrower ribcage below the bust, and the
+     iliac crest showing at the hip. */
+  { c: [0.072, 0.660, 0.020], r: [0.030, 0.040, 0.06], amp: -0.006, face: "side", kind: B, only: "female" },
+  { c: [0.076, 0.560, 0.030], r: [0.026, 0.018, 0.05], amp: 0.004, face: "front", kind: B, only: "female" },
 ];
 
 /**
@@ -156,6 +174,7 @@ export function relief(
 
   for (const f of FIELDS) {
     if (f.needsAbs && !p.absVisible) continue;
+    if (f.only && f.only !== p.sex) continue;
 
     const strength =
       f.kind === "muscle" ? p.definition
