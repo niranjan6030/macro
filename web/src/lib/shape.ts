@@ -11,11 +11,21 @@ import type { Targets } from "@/lib/fitness/energy";
 import type { Projection } from "@/lib/fitness/projection";
 import type { StoredProfile, Day, DiaryEntry, PhotoRow, Measurement } from "@/lib/db";
 import type { Exercise, Prescription } from "@/lib/fitness/training";
+import type { Composition } from "@/lib/fitness/physique";
 
 export type {
   Nutrients, Food, Targets, Projection, StoredProfile, Day, DiaryEntry,
-  PhotoRow, Measurement,
+  PhotoRow, Measurement, Composition,
 };
+
+export interface Forecast {
+  weeksToGoal: number | null;
+  daysToGoal: number | null;
+  goalDate: string | null;
+  targetWeightKg: number | null;
+  verdict: string;
+  atGoal: { week: number; weightKg: number; bodyFatPct: number; leanKg: number } | null;
+}
 
 export interface ProfileResponse {
   profile: StoredProfile | null;
@@ -40,6 +50,8 @@ export interface DayResponse {
   entries: DiaryEntry[];
   totals: Nutrients;
   targets: Targets | null;
+  composition: Composition | null;
+  forecast: Forecast | null;
   remaining: {
     kcal: number; protein: number; carbs: number; fat: number; fibre: number;
   } | null;

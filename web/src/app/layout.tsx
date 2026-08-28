@@ -47,7 +47,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body>
-        {/* The figure is the page's background, fixed behind everything. */}
+        {/* The default figure, behind every screen. The home screen mounts its
+            own in place of this one, built from the signed-in person's body. */}
         <Scene className="pointer-events-none fixed inset-0 -z-20" />
         <Grain />
         <Frame />

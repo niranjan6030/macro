@@ -3,6 +3,7 @@ import { bmr, tdee, dailyTargets } from "../.check/fitness/energy.js";
 import { project, intakeForDeadline } from "../.check/fitness/projection.js";
 import { nextPrescription, e1rm, weekPlan, splitFor } from "../.check/fitness/training.js";
 import { forGrams, plausible } from "../.check/nutrition/types.js";
+import { physiqueOf, blend } from "../.check/fitness/physique.js";
 
 let passed = 0;
 const check = (name, fn) => {
@@ -186,6 +187,91 @@ check("the week has the right number of training days", () => {
     assert.equal(plan.filter(Boolean).length, days, `${days} days`);
     assert.equal(plan.length, 7);
   }
+});
+
+console.log("\nPhysique");
+
+const body = (sex, heightCm, weightKg, bf) => ({
+  sex, heightCm, weightKg, bodyFatPct: bf, leanKg: weightKg * (1 - bf / 100),
+});
+
+check("losing fat opens the taper", () => {
+  const before = physiqueOf(body("male", 178, 95, 32));
+  const after = physiqueOf(body("male", 178, 80, 16));
+  assert.ok(after.taper > before.taper, `${before.taper} -> ${after.taper}`);
+  assert.ok(after.w.waist < before.w.waist);
+});
+
+check("adding lean mass widens the shoulders far more than the waist", () => {
+  const light = physiqueOf(body("male", 178, 70, 15));
+  const built = physiqueOf(body("male", 178, 86, 15));
+  const shoulderGain = built.w.shoulder - light.w.shoulder;
+  const waistGain = built.w.waist - light.w.waist;
+  assert.ok(shoulderGain > waistGain * 3,
+    `shoulders +${shoulderGain.toFixed(4)} vs waist +${waistGain.toFixed(4)}`);
+});
+
+check("widths match real circumferences", () => {
+  // Half-width is about circumference / (2pi) x 1.10 for an elliptical torso.
+  const fromCirc = (cm, heightCm) => (cm / (2 * Math.PI)) * 1.10 / heightCm;
+  const lean = physiqueOf(body("male", 178, 72, 10));
+  const soft = physiqueOf(body("male", 178, 88, 26));
+  // 76 cm waist lean, 92 cm at 26%.
+  assert.ok(Math.abs(lean.w.waist - fromCirc(76, 178)) < 0.008,
+    `lean waist ${lean.w.waist.toFixed(3)} vs ${fromCirc(76, 178).toFixed(3)}`);
+  assert.ok(Math.abs(soft.w.waist - fromCirc(92, 178)) < 0.010,
+    `soft waist ${soft.w.waist.toFixed(3)} vs ${fromCirc(92, 178).toFixed(3)}`);
+});
+
+check("abs are gated on real body fat, not faded in", () => {
+  assert.equal(physiqueOf(body("male", 178, 78, 12)).absVisible, true);
+  assert.equal(physiqueOf(body("male", 178, 78, 19)).absVisible, false);
+  assert.equal(physiqueOf(body("female", 165, 58, 21)).absVisible, true);
+  assert.equal(physiqueOf(body("female", 165, 58, 30)).absVisible, false);
+});
+
+check("definition needs both muscle and leanness", () => {
+  const thin = physiqueOf(body("male", 178, 58, 12));
+  const heavyStrong = physiqueOf(body("male", 178, 105, 32));
+  const leanStrong = physiqueOf(body("male", 178, 85, 11));
+  assert.ok(leanStrong.definition > thin.definition);
+  assert.ok(leanStrong.definition > heavyStrong.definition);
+});
+
+check("fat adds depth faster than width", () => {
+  const lean = physiqueOf(body("male", 178, 72, 10));
+  const soft = physiqueOf(body("male", 178, 95, 32));
+  assert.ok(soft.depth > lean.depth, "a heavier body is deeper front to back");
+  assert.ok(soft.belly > 0.5 && lean.belly < 0.05);
+});
+
+check("women carry wider hips relative to shoulders", () => {
+  const w = physiqueOf(body("female", 165, 68, 30));
+  const m = physiqueOf(body("male", 178, 80, 22));
+  assert.ok(w.w.hip / w.w.shoulder > m.w.hip / m.w.shoulder);
+});
+
+check("every width stays positive and sane across the whole range", () => {
+  for (const sex of ["male", "female"]) {
+    for (const bf of [4, 12, 25, 40, 55]) {
+      for (const kg of [42, 70, 95, 140]) {
+        const p = physiqueOf(body(sex, 170, kg, bf));
+        for (const [name, v] of Object.entries(p.w)) {
+          assert.ok(v > 0 && v < 0.30, `${sex} ${kg}kg ${bf}%: ${name} = ${v}`);
+        }
+        assert.ok(p.definition >= 0 && p.definition <= 1);
+        assert.ok(p.depth > 0.5 && p.depth < 1.0);
+      }
+    }
+  }
+});
+
+check("blend interpolates and clamps at both ends", () => {
+  const a = body("male", 178, 90, 28), b = body("male", 178, 76, 15);
+  assert.equal(blend(a, b, 0).weightKg, 90);
+  assert.equal(blend(a, b, 1).weightKg, 76);
+  assert.equal(blend(a, b, 0.5).weightKg, 83);
+  assert.equal(blend(a, b, 5).weightKg, 76, "should clamp above 1");
 });
 
 console.log("\nNutrition");

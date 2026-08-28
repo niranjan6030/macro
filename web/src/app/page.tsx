@@ -7,7 +7,9 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Bed, Cookie, Scale, Dumbbell,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { CalorieRing, MacroBars, TrendChart } from "@/components/Rings";
+import { MacroBars, TrendChart } from "@/components/Rings";
+import { ScrollStory } from "@/components/ScrollStory";
+import { useBody } from "@/lib/bodyStore";
 import { get, put, del, today, prettyDate, shiftDate } from "@/lib/client";
 import { useResource } from "@/lib/useResource";
 import type { DayResponse } from "@/lib/shape";
@@ -35,6 +37,13 @@ export default function TodayPage() {
     if (data && !data.targets && !loading) router.replace("/onboarding");
   }, [data, loading, router]);
 
+  /* Hand the figure this person's body. The scene itself lives in the root
+     layout — one WebGL context for the whole app. */
+  const setComposition = useBody((s) => s.setComposition);
+  useEffect(() => {
+    if (data?.composition) setComposition(data.composition);
+  }, [data, setComposition]);
+
   if (!ready || (loading && !data)) {
     return <div className="grid h-[70vh] place-items-center"><Loader2 className="animate-spin text-[var(--color-mute)]" /></div>;
   }
@@ -50,6 +59,7 @@ export default function TodayPage() {
 
   return (
     <div className="space-y-5 py-6">
+
       <header className="flex items-center justify-between">
         <button onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"
                 className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-line)]">
@@ -67,9 +77,8 @@ export default function TodayPage() {
 
       {totals && (
         <>
-          <section className="pt-2">
-            <CalorieRing eaten={totals.kcal} target={data!.targets?.kcal ?? 0} />
-          </section>
+          {/* The day, told against the figure it is building. */}
+          <ScrollStory data={data!} />
 
           <section className="card p-4">
             <MacroBars totals={totals} targets={data!.targets} />

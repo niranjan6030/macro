@@ -1,21 +1,26 @@
 import * as THREE from "three";
+import type { Physique } from "@/lib/fitness/physique";
+import { cavity, relief } from "./muscles";
 
 /**
- * An athletic human figure, built rather than loaded.
+ * A human figure, built rather than loaded.
  *
- * There is no model file here on purpose. A GLB of a body is several
- * megabytes before it is rigged, it has to be fetched before anything can be
- * drawn, and it would need a licence. This builds the same shape from about
- * sixty numbers, which ship in the bundle and cost nothing to load.
+ * There is no model file here on purpose. A rigged GLB of a body is several
+ * megabytes before it is textured, it has to be fetched before anything can
+ * be drawn, and it would need a licence. More to the point, a fixed model
+ * cannot do the one thing this app needs: change shape as the person does.
  *
- * The method is lofting: define the cross-section of the body at a series of
- * heights, then stitch consecutive sections into a surface. Every section is
- * a superellipse rather than a circle, because a torso is much wider than it
- * is deep and a circular ribcage reads instantly as a snowman.
+ * The method is lofting. Define the cross-section of the body at a series of
+ * heights, resample those sections into a dense smooth stack, stitch them
+ * into a surface, then push every vertex out along its own normal by the
+ * muscle and fat relief at that point. Every section is a superellipse rather
+ * than a circle, because a torso is much wider than it is deep and a circular
+ * ribcage reads instantly as a snowman.
  *
- * Proportions are the standard ~7.5-head canon, with the soft tissue set for
- * a trained body: shoulders around 1.6 times the waist, which is the V-taper
- * that makes a figure read as fit from a distance and in silhouette.
+ * Both stages are driven by the person's own composition. The widths come
+ * from `physiqueOf`, and so does the relief — so the body on screen at 26%
+ * body fat is not merely a wider version of the body at 14%, it is a
+ * different shape with the muscle buried instead of showing.
  */
 
 export interface Ring {
@@ -32,7 +37,11 @@ export interface Ring {
   n?: number;
 }
 
-const RADIAL = 48;
+/* Dense enough that the muscle relief has something to displace. At 48
+   segments the pectorals came out as two facets. */
+const RADIAL = 112;
+/** Cross-sections after resampling. The hand-written rings are far fewer. */
+const ROWS = 190;
 
 /**
  * Stitch a stack of cross-sections into a closed surface.
@@ -42,7 +51,57 @@ const RADIAL = 48;
  * each ring to the path tangent) costs a lot of code for a difference no one
  * can see at this scale.
  */
-export function loft(rings: Ring[], radial = RADIAL): THREE.BufferGeometry {
+/**
+ * Smooth a hand-written stack of rings into a dense one.
+ *
+ * Catmull-Rom through every channel. Straight linear interpolation between
+ * the authored rings leaves a visible crease at each one — the surface is
+ * continuous but its slope is not, and raking light across it shows every
+ * seam as a hard band.
+ */
+function resample(rings: Ring[], rows: number): Ring[] {
+  const at = (i: number) => rings[Math.max(0, Math.min(rings.length - 1, i))];
+
+  /* Catmull-Rom, clamped to the segment it is interpolating.
+   *
+   * Unclamped it overshoots wherever two neighbouring sections differ sharply
+   * — and they do, at the neck, where depth jumps from 0.92 of width to 1.30,
+   * and at the foot, where it goes to 3.1. The overshoot showed as horizontal
+   * bands ringing the torso like a tyre. Clamping keeps the curve smooth and
+   * stops it inventing bulges that no control point asked for. */
+  const cr = (a: number, b: number, c: number, d: number, t: number) => {
+    const t2 = t * t, t3 = t2 * t;
+    const v = 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+    const lo = Math.min(b, c), hi = Math.max(b, c);
+    return v < lo ? lo : v > hi ? hi : v;
+  };
+
+  const out: Ring[] = [];
+  const span = rings.length - 1;
+
+  for (let r = 0; r < rows; r++) {
+    const u = (r / (rows - 1)) * span;
+    const i = Math.min(Math.floor(u), span - 1);
+    const t = u - i;
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+
+    const ch = (pick: (x: Ring) => number) =>
+      cr(pick(p0), pick(p1), pick(p2), pick(p3), t);
+
+    out.push({
+      c: [ch((x) => x.c[0]), ch((x) => x.c[1]), ch((x) => x.c[2])],
+      rx: Math.max(0.001, ch((x) => x.rx)),
+      rz: Math.max(0.001, ch((x) => x.rz)),
+      front: ch((x) => x.front ?? 1),
+      back: ch((x) => x.back ?? 1),
+      n: ch((x) => x.n ?? 2.3),
+    });
+  }
+  return out;
+}
+
+export function loft(input: Ring[], radial = RADIAL, rows = ROWS): THREE.BufferGeometry {
+  const rings = resample(input, rows);
   const positions: number[] = [];
   const indices: number[] = [];
 
@@ -103,135 +162,208 @@ export function loft(rings: Ring[], radial = RADIAL): THREE.BufferGeometry {
 
 /*
  * The body, in a space where the figure is 1.0 tall with its feet at y = 0.
- * Read every number as a fraction of height.
  *
- * Proportions are measured off a reference silhouette of a lean athletic
- * male: eight heads tall, shoulders 0.118 of height at the half-width, waist
- * 0.076, and limbs far slimmer than they first look — a thigh is only about
- * 0.042 across at the half, and a bicep 0.026. The first pass at this was
- * built from memory and came out roughly half again too thick everywhere,
- * which reads as a heavyset man rather than a trained one. Bodies are
- * narrower than they feel.
+ * Nothing here is an absolute width. Each cross-section names the measurement
+ * that drives it and a factor — so `["shoulder", 1.0]` at y 0.790 is the
+ * widest point of the deltoids, and it moves whenever the person's lean mass
+ * does. That indirection is the whole reason the figure can change with the
+ * diary instead of being redrawn by hand.
  *
- * Depth runs about 0.68 of width through the torso, because a ribcage is an
- * ellipse on its side, and close to 1.0 in the limbs, which are round.
+ * Landmark heights are the eight-head canon measured off a reference
+ * silhouette: shoulder at 0.79, waist at 0.578, crotch at 0.44, knee at
+ * 0.265. Those are skeletal and do not move; only the widths do.
  */
 
-const TORSO: Ring[] = [
-  { c: [0, 0.440, 0], rx: 0.079, rz: 0.062, n: 2.4, front: 0.94 },
-  { c: [0, 0.470, 0], rx: 0.084, rz: 0.066, n: 2.4, front: 0.92, back: 1.26 },
-  { c: [0, 0.500, 0], rx: 0.085, rz: 0.068, n: 2.3, front: 0.92, back: 1.22 },  // hip and glutes
-  { c: [0, 0.545, 0], rx: 0.078, rz: 0.062, n: 2.3, front: 0.92, back: 1.04 },
-  { c: [0, 0.578, 0], rx: 0.075, rz: 0.060, n: 2.2, front: 0.92 },   // waist
-  { c: [0, 0.618, 0], rx: 0.080, rz: 0.064, n: 2.2, front: 0.98 },
-  { c: [0, 0.662, 0], rx: 0.092, rz: 0.071, n: 2.2, front: 1.02 },
-  { c: [0, 0.706, 0], rx: 0.103, rz: 0.077, n: 2.1, front: 1.14, back: 1.06 },  // chest
-  { c: [0, 0.752, 0], rx: 0.111, rz: 0.079, n: 2.1, front: 1.08, back: 1.10 },
-  { c: [0, 0.790, 0], rx: 0.117, rz: 0.077, n: 2.1 },                // deltoids
-  /* The slope from the point of the shoulder into the neck. Skipping
-     straight from a 0.117 shoulder to a 0.043 neck built a body whose head
-     sat between its ears; the trapezius needs these two rings to read. */
-  { c: [0, 0.812, 0], rx: 0.104, rz: 0.070, n: 2.2 },
-  { c: [0, 0.830, 0], rx: 0.070, rz: 0.058, n: 2.2 },
-  { c: [0, 0.848, 0], rx: 0.045, rz: 0.044, n: 2.4 },                // neck
-  { c: [0, 0.872, 0], rx: 0.041, rz: 0.041, n: 2.4 },
-  { c: [0, 0.886, 0], rx: 0.042, rz: 0.042, n: 2.4 },
+type Key = "neck" | "shoulder" | "chest" | "waist" | "hip"
+         | "thigh" | "knee" | "calf" | "ankle" | "upperArm" | "forearm";
+
+interface Section {
+  /** Height up the figure. */
+  y: number;
+  /** Which measurement drives this section, and by how much. */
+  w: [Key, number];
+  /** Sideways offset, as a factor of the same measurement. 0 is centred. */
+  x?: [Key, number];
+  /** Depth as a factor of the figure's overall depth ratio. */
+  d?: number;
+  /**
+   * Push outboard far enough to clear the torso.
+   *
+   * Arm offsets are a factor of shoulder width, but the waist grows with fat
+   * about nine times faster than the shoulder does — so on a heavier body the
+   * forearm ends up inside the flank and the arms disappear into the ribs.
+   * This holds a gap open whatever the composition.
+   */
+  clear?: boolean;
+  z?: number;
+  front?: number;
+  back?: number;
+  n?: number;
+}
+
+const TORSO: Section[] = [
+  /* The torso stops at the crotch, narrow enough to be hidden between the
+     thighs. Two earlier versions got this wrong in opposite directions: one
+     ended square at the hip and its flat cap showed as a bright rectangular
+     panel, and the next tapered but ran 40 mm too far down, so the tail of it
+     poked out between the legs. */
+  { y: 0.434, w: ["hip", 0.40], d: 0.88, n: 2.0 },
+  { y: 0.452, w: ["hip", 0.70], d: 0.92, n: 2.1 },
+  { y: 0.470, w: ["hip", 0.94], d: 0.97, n: 2.2, back: 1.16 },
+  { y: 0.500, w: ["hip", 1.00], d: 1.00, n: 2.15, back: 1.14 },
+  { y: 0.545, w: ["waist", 1.05], d: 1.00, n: 2.15, back: 1.04 },
+  { y: 0.578, w: ["waist", 1.00], d: 1.00, n: 2.1 },
+  { y: 0.618, w: ["waist", 1.07], d: 1.01, n: 2.1 },
+  { y: 0.662, w: ["chest", 0.92], d: 1.03, n: 2.1 },
+  { y: 0.706, w: ["chest", 1.00], d: 1.06, n: 2.1 },
+  { y: 0.752, w: ["chest", 1.08], d: 1.05, n: 2.1 },
+  { y: 0.790, w: ["shoulder", 1.00], d: 0.95, n: 2.1 },
+  { y: 0.812, w: ["shoulder", 0.89], d: 0.91, n: 2.2 },
+  { y: 0.830, w: ["shoulder", 0.60], d: 0.95, n: 2.2 },
+  { y: 0.848, w: ["neck", 1.00], d: 1.18, n: 2.4 },
+  { y: 0.872, w: ["neck", 0.92], d: 1.22, n: 2.4 },
+  { y: 0.886, w: ["neck", 0.94], d: 1.22, n: 2.4 },
 ];
 
-/**
- * One arm, hanging close with a slight outward bow.
+/*
+ * Note on `front` and `back`.
  *
- * The top ring sits high and well inside the deltoid on purpose: it is buried
- * in the torso, so the flat cap that closes the loft never shows. An earlier
- * pass started the arm at the outer edge of the shoulder and the caps stuck
- * out as two hard-edged slabs hovering beside the ribs.
- *
- * Below that the arm is nearly vertical, drifting out by about 0.06 of height
- * over its length, with the fingertips finishing at mid-thigh. What makes it
- * readable in silhouette is not distance from the body but that its inner
- * edge clears the waist, which at these widths it does comfortably.
- *
- * Mirrored for the other side, so the halves cannot drift apart.
+ * These used to vary section by section to shape the chest and the glutes,
+ * and it was a mistake: each control point put a ridge across the body at its
+ * own height, and the abdomen came out banded like a tyre. Depth profiles
+ * want to be almost flat. Chest projection, buttocks and belly are all shaped
+ * by the relief fields instead, which blend in three dimensions and leave no
+ * horizon where one section ends and the next begins.
  */
-function arm(side: 1 | -1): Ring[] {
-  const x = (v: number) => side * v;
-  return [
-    /* The top ring must fit entirely inside the torso at this height, or the
-       flat cap that closes the loft shows as a hard horizontal edge and the
-       arm reads as a plank bolted to the shoulder. At y = 0.800 the torso is
-       0.113 across at the half, so 0.070 + 0.044 = 0.114 just tucks under. */
-    { c: [x(0.070), 0.800, 0], rx: 0.044, rz: 0.044 },
-    { c: [x(0.086), 0.780, 0], rx: 0.038, rz: 0.039 },
-    { c: [x(0.099), 0.750, 0.002], rx: 0.032, rz: 0.033 },
-    { c: [x(0.108), 0.720, 0.004], rx: 0.029, rz: 0.030 },   // biceps
-    { c: [x(0.116), 0.675, 0.008], rx: 0.025, rz: 0.026 },
-    { c: [x(0.121), 0.636, 0.012], rx: 0.021, rz: 0.022 },   // elbow
-    /* Forward through the forearm. A dead-straight arm hanging in a plane
-       reads as a mannequin's; the slight bend is most of what makes it look
-       like it belongs to someone standing. */
-    { c: [x(0.125), 0.596, 0.016], rx: 0.023, rz: 0.024 },
-    { c: [x(0.129), 0.542, 0.020], rx: 0.019, rz: 0.020 },
-    { c: [x(0.131), 0.502, 0.023], rx: 0.014, rz: 0.016 },   // wrist
-    { c: [x(0.133), 0.478, 0.026], rx: 0.018, rz: 0.023 },   // the hand
-    { c: [x(0.133), 0.452, 0.028], rx: 0.015, rz: 0.020 },
-    /* Tapered almost to nothing. A hand that stops at full width leaves the
-       end cap facing the camera as a flat rectangular chip. */
-    { c: [x(0.133), 0.436, 0.028], rx: 0.006, rz: 0.009 },
-  ];
-}
 
-function leg(side: 1 | -1): Ring[] {
-  const x = (v: number) => side * v;
-  return [
-    { c: [x(0.045), 0.478, 0], rx: 0.049, rz: 0.053 },   // buried in the pelvis
-    { c: [x(0.047), 0.420, 0], rx: 0.045, rz: 0.049, front: 0.96 },
-    { c: [x(0.049), 0.360, 0], rx: 0.041, rz: 0.045 },
-    { c: [x(0.050), 0.310, 0], rx: 0.035, rz: 0.039 },
-    { c: [x(0.050), 0.265, 0], rx: 0.029, rz: 0.032 },   // knee
-    { c: [x(0.049), 0.222, 0], rx: 0.031, rz: 0.036, front: 0.86 },  // calf
-    { c: [x(0.048), 0.170, 0], rx: 0.027, rz: 0.031, front: 0.86 },
-    { c: [x(0.046), 0.105, 0], rx: 0.019, rz: 0.022 },
-    { c: [x(0.045), 0.048, 0], rx: 0.015, rz: 0.017 },   // ankle
-    { c: [x(0.046), 0.022, 0.012], rx: 0.019, rz: 0.038, n: 2.6 },
-    { c: [x(0.047), 0.008, 0.020], rx: 0.018, rz: 0.046, n: 2.8 },
-    { c: [x(0.047), 0.001, 0.022], rx: 0.013, rz: 0.036, n: 2.8 },   // sole
-  ];
+/**
+ * One arm, hanging close with a slight outward bow and a forward elbow.
+ *
+ * The top section must fit entirely inside the torso at its height, or the
+ * flat cap that closes the loft shows as a hard horizontal edge and the arm
+ * reads as a plank bolted to the ribs. Offsets are factors of shoulder width,
+ * so a broader person's arms hang wider without any of this being re-tuned.
+ */
+const ARM: Section[] = [
+  { y: 0.800, w: ["upperArm", 1.62], x: ["shoulder", 0.60], d: 1.5 },
+  { y: 0.780, w: ["upperArm", 1.42], x: ["shoulder", 0.74], d: 1.5 },
+  { y: 0.750, w: ["upperArm", 1.20], x: ["shoulder", 0.85], d: 1.5, z: 0.002 },
+  { y: 0.720, w: ["upperArm", 1.10], x: ["shoulder", 0.92], d: 1.5, z: 0.004 },
+  { clear: true, y: 0.675, w: ["upperArm", 0.95], x: ["shoulder", 0.99], d: 1.5, z: 0.008 },
+  { clear: true, y: 0.636, w: ["upperArm", 0.80], x: ["shoulder", 1.03], d: 1.5, z: 0.012 },
+  { clear: true, y: 0.596, w: ["forearm", 1.10], x: ["shoulder", 1.07], d: 1.5, z: 0.016 },
+  { clear: true, y: 0.542, w: ["forearm", 0.90], x: ["shoulder", 1.10], d: 1.5, z: 0.020 },
+  { clear: true, y: 0.502, w: ["forearm", 0.67], x: ["shoulder", 1.12], d: 1.5, z: 0.023 },
+  { clear: true, y: 0.478, w: ["forearm", 0.86], x: ["shoulder", 1.13], d: 1.6, z: 0.026 },
+  { clear: true, y: 0.452, w: ["forearm", 0.71], x: ["shoulder", 1.13], d: 1.6, z: 0.028 },
+  { clear: true, y: 0.436, w: ["forearm", 0.29], x: ["shoulder", 1.13], d: 1.6, z: 0.028 },
+];
+
+const LEG: Section[] = [
+  { y: 0.478, w: ["thigh", 1.10], x: ["hip", 0.50], d: 1.10 },
+  { y: 0.420, w: ["thigh", 1.04], x: ["hip", 0.52], d: 1.10, front: 0.96 },
+  { y: 0.360, w: ["thigh", 0.98], x: ["hip", 0.58], d: 1.10 },
+  { y: 0.310, w: ["thigh", 0.83], x: ["hip", 0.59], d: 1.12 },
+  { y: 0.265, w: ["knee", 1.00], x: ["hip", 0.59], d: 1.12 },
+  { y: 0.222, w: ["calf", 1.03], x: ["hip", 0.58], d: 1.16, front: 0.86 },
+  { y: 0.170, w: ["calf", 0.90], x: ["hip", 0.57], d: 1.16, front: 0.86 },
+  { y: 0.105, w: ["calf", 0.63], x: ["hip", 0.54], d: 1.16 },
+  { y: 0.048, w: ["ankle", 1.00], x: ["hip", 0.53], d: 1.13 },
+  { y: 0.022, w: ["ankle", 1.27], x: ["hip", 0.54], d: 2.6, z: 0.012, n: 2.6 },
+  { y: 0.008, w: ["ankle", 1.20], x: ["hip", 0.55], d: 3.1, z: 0.020, n: 2.8 },
+  { y: 0.001, w: ["ankle", 0.87], x: ["hip", 0.55], d: 2.7, z: 0.022, n: 2.8 },
+];
+
+/** Turn a table of sections into rings, at this person's measurements. */
+function rings(sections: Section[], p: Physique, side: 1 | -1 = 1): Ring[] {
+  return sections.map((s) => {
+    const rx = p.w[s.w[0]] * s.w[1];
+    let offset = s.x ? p.w[s.x[0]] * s.x[1] : 0;
+    if (s.clear) {
+      // The widest the torso gets here, plus the arm's own radius, plus air.
+      offset = Math.max(offset, Math.max(p.w.waist, p.w.hip) * 1.04 + rx + 0.006);
+    }
+    const cx = s.x ? side * offset : 0;
+    return {
+      c: [cx, s.y, s.z ?? 0],
+      rx,
+      rz: rx * p.depth * (s.d ?? 1),
+      front: s.front,
+      back: s.back,
+      n: s.n,
+    };
+  });
 }
 
 /**
- * The whole figure as one merged geometry.
+ * The whole figure as one merged geometry, at this composition.
  *
  * Merged rather than kept as a group of meshes so the whole thing is a single
- * draw call, and so the material and any post-processing treat it as one
- * object. The parts interpenetrate at the shoulder and hip; those seams are
- * inside the surface and never visible.
+ * draw call and the relief pass can treat it as one surface. The parts
+ * interpenetrate at the shoulder and hip; those seams are inside the volume
+ * and never visible.
  */
-export function buildBody(): THREE.BufferGeometry {
+export function buildBody(p: Physique): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [
-    loft(TORSO),
-    loft(arm(1)), loft(arm(-1)),
-    loft(leg(1)), loft(leg(-1)),
+    loft(rings(TORSO, p)),
+    loft(rings(ARM, p, 1)), loft(rings(ARM, p, -1)),
+    loft(rings(LEG, p, 1)), loft(rings(LEG, p, -1)),
   ];
 
-  /* Eight heads tall, so the skull is 0.125 of the figure and its radius
-     about 0.058. Slightly narrow, slightly deep — a head is an egg, not a
-     ball — and a shallower cap sat on top for hair, which is what stops the
-     silhouette reading as a mannequin. */
-  const skull = new THREE.SphereGeometry(0.058, 32, 24);
+  /* Eight heads tall, so the skull is 0.125 of the figure. A head is an egg
+     rather than a ball, and the shallower cap on top is hair — which is most
+     of what stops a silhouette reading as a mannequin. */
+  const skull = new THREE.SphereGeometry(0.058, 64, 48);
   skull.scale(0.84, 1.08, 0.94);
   skull.translate(0, 0.934, 0.004);
   parts.push(skull);
 
-  const hair = new THREE.SphereGeometry(0.0595, 32, 20);
+  const hair = new THREE.SphereGeometry(0.0595, 64, 32);
   hair.scale(0.88, 0.66, 0.97);
   hair.translate(0, 0.958, -0.003);
   parts.push(hair);
 
   const merged = mergeGeometries(parts);
-  // Centre on the origin so it rotates about its own axis, not its feet.
-  merged.translate(0, -0.5, 0);
   merged.computeVertexNormals();
+  applyRelief(merged, p);
+
+  // Centre on the origin so it turns about its own axis, not its feet.
+  merged.translate(0, -0.5, 0);
   return merged;
+}
+
+/**
+ * Push every vertex out along its normal by the muscle and fat relief there.
+ *
+ * Done on the CPU at build time rather than in a vertex shader, because it
+ * runs once per composition change — at most daily — and doing it here means
+ * the normals can be recomputed from the displaced surface. A shader would
+ * have to fake them, and the lighting is most of what sells the anatomy.
+ */
+function applyRelief(g: THREE.BufferGeometry, p: Physique): void {
+  const pos = g.getAttribute("position") as THREE.BufferAttribute;
+  const nor = g.getAttribute("normal") as THREE.BufferAttribute;
+  const shade = new Float32Array(pos.count * 3);
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const nx = nor.getX(i), ny = nor.getY(i), nz = nor.getZ(i);
+
+    const d = relief(x, y, z, nx, ny, nz, p);
+    if (d !== 0) pos.setXYZ(i, x + nx * d, y + ny * d, z + nz * d);
+
+    /* Cavity shading, baked into vertex colour. Sampled at the original
+       position, before displacement — the field is defined on the base
+       surface, and asking it about a point it has already moved gives the
+       occlusion of somewhere the body no longer is. */
+    const ao = cavity(x, y, z, nx, ny, nz, p);
+    shade[i * 3] = shade[i * 3 + 1] = shade[i * 3 + 2] = ao;
+  }
+
+  pos.needsUpdate = true;
+  g.setAttribute("color", new THREE.BufferAttribute(shade, 3));
+  // Recomputed from the displaced surface, so the relief catches the light.
+  g.computeVertexNormals();
 }
 
 /** three's BufferGeometryUtils lives in examples; this is the only bit needed. */
