@@ -67,6 +67,14 @@ from your logged data first, and the model's only job is to write it up.
   inventing a date
 
 **Training**
+- Pick what you actually did: Gym, HIIT, Cardio, Sport, Class, or daily life
+- Gym drills down by split, by muscle, or by searching 65 exercises by name;
+  anything can be added to the day on top of what was prescribed
+- Everything else is logged by time, with the calorie cost from METs
+  (Compendium of Physical Activities). **Net, not gross** — a MET figure
+  includes the resting burn your maintenance already counts, and adding the
+  gross number counts it twice. Two hours of walking is 420 kcal here and 588
+  in most apps; the smaller number is the correct one
 - Splits chosen by weekly frequency: three days gets full body, not
   push/pull/legs
 - Double progression — reps first, then load, per exercise, from your last
@@ -76,6 +84,11 @@ from your logged data first, and the model's only job is to write it up.
 
 **The figure**
 - A 3D body stands behind every screen and turns as you scroll
+- Classified into one of six builds — underweight, skinny fat, overweight,
+  carrying a lot of fat, fit, fit and muscular — from BMI, body fat and
+  fat-free mass index read together. BMI alone cannot tell them apart: it
+  files a lean 88 kg lifter as "overweight" and someone at 21 BMI with 26%
+  body fat as "normal". Both of those are shown correctly here
 - **It is your body.** The cross-sections are driven by your own lean mass and
   body fat, so it changes as you log — slowly, by the amount the numbers moved
 - Two drivers, moving independently: fat-free mass index, which fat cannot

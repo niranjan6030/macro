@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ActivityRings, RingKey, type Ring } from "@/components/ActivityRings";
+import { Explain } from "@/components/Explain";
+import { physiqueOf } from "@/lib/fitness/physique";
+import { BUILDS } from "@/lib/fitness/physique";
 import type { DayResponse } from "@/lib/shape";
 
 /**
@@ -28,6 +31,12 @@ export function ScrollStory({ data }: { data: DayResponse }) {
   if (!t || !rem) return null;
 
   const over = rem.kcal < 0;
+
+  const physique = data.composition ? physiqueOf(data.composition) : null;
+  const build = physique ? BUILDS[physique.build] : null;
+  const bmi = data.composition
+    ? round1(data.composition.weightKg / (data.composition.heightCm / 100) ** 2)
+    : null;
 
   /* Three rings, the way a day divides: what you ate, whether you got the
      protein, and whether you trained. Told apart by radius and brightness
@@ -56,9 +65,12 @@ export function ScrollStory({ data }: { data: DayResponse }) {
         </ActivityRings>
         <div className="mx-auto max-w-xs rounded-2xl bg-black/55 p-4 backdrop-blur-sm">
           <RingKey rings={rings} />
-          <p className="mt-3 border-t border-[var(--color-line)] pt-3 text-[12px] leading-relaxed text-[var(--color-mute)]">
-            {Math.round(totals.kcal)} eaten of {t.kcal}. Maintenance is {t.tdee}.
-          </p>
+          <div className="mt-3 border-t border-[var(--color-line)] pt-3">
+            <p className="text-[12px] leading-relaxed text-[var(--color-mute)]">
+              {Math.round(totals.kcal)} eaten of {t.kcal}. Maintenance is {t.tdee}.
+            </p>
+            <Explain id="tdee" className="mt-2" />
+          </div>
         </div>
       </Panel>
 
@@ -72,6 +84,7 @@ export function ScrollStory({ data }: { data: DayResponse }) {
             ? `${rem.protein} g to go. This is the one that decides whether the weight you lose is fat or muscle.`
             : "Hit. That is the one that protects muscle while you cut."}
         </Note>
+        <Explain id="protein" />
       </Panel>
 
       <Panel>
@@ -118,15 +131,28 @@ export function ScrollStory({ data }: { data: DayResponse }) {
       )}
 
       <Panel>
-        <Eyebrow>Your body</Eyebrow>
-        <Big value={data.composition ? round1(data.composition.weightKg) : 0} suffix="kg" />
-        <Caption>
-          {data.composition ? `${round1(data.composition.bodyFatPct)}% body fat` : "not set up yet"}
-        </Caption>
-        <Note>
-          The figure is built from these two numbers. It changes when they do —
-          slowly, the way you will. Weigh in most days and it keeps up.
-        </Note>
+        <Eyebrow>Your build</Eyebrow>
+        {build ? (
+          <>
+            <p className="display text-[2.6rem] leading-tight"
+               style={{ textShadow: "0 2px 24px rgba(0,0,0,0.95)" }}>
+              {build.label}
+            </p>
+            <Note>{build.meaning}</Note>
+            <p className="num pt-1 text-xs text-[var(--color-mute)]">
+              {round1(data.composition!.weightKg)} kg · {round1(data.composition!.bodyFatPct)}% fat
+              · BMI {bmi} · FFMI {physique!.ffmi}
+            </p>
+            <Note><strong className="text-[var(--color-chalk)]">Next:</strong> {build.next}</Note>
+            <div className="pt-1"><Explain id="ffmi" /></div>
+            <Note>
+              The figure behind this is built from those numbers, and it moves as they
+              do — so when this says something different in two months, so will the body.
+            </Note>
+          </>
+        ) : (
+          <Note>Log your height, weight and date of birth and your build appears here.</Note>
+        )}
       </Panel>
     </div>
   );
@@ -221,4 +247,4 @@ function Meter({ value, target }: { value: number; target: number }) {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const prettyMonth = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
