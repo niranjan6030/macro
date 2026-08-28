@@ -3,6 +3,7 @@ import {
   getDay, upsertDay, isoDate, listDiary, totalsOf, profileFor, weightSeries, daysAgo,
 } from "@/lib/db";
 import { dailyTargets } from "@/lib/fitness/energy";
+import { project } from "@/lib/fitness/projection";
 
 /**
  * One day: what they ate, what they weighed, and how it compares to target.
@@ -22,12 +23,40 @@ export const GET = withUser(async (uid, req) => {
   const totals = totalsOf(entries);
   const targets = profile ? dailyTargets(profile) : null;
 
+  /* The figure is drawn from this, and it travels with the day rather than in
+     its own request so the body and the numbers land in the same paint. A
+     figure that appears a beat after the ring looks broken. */
+  const composition = profile && targets
+    ? {
+        sex: profile.sex,
+        heightCm: profile.heightCm,
+        weightKg: profile.weightKg,
+        bodyFatPct: targets.bodyFatPct,
+        leanKg: targets.leanKg,
+      }
+    : null;
+
+  const forecast = profile && targets ? project(profile, targets.kcal) : null;
+
   return ok({
     date,
     day: day ?? { uid, on_date: date, rest_day: false, cheat_day: false, water_ml: 0 },
     entries,
     totals,
     targets,
+    composition,
+    forecast: forecast && {
+      weeksToGoal: forecast.weeksToGoal,
+      daysToGoal: forecast.weeksToGoal != null ? forecast.weeksToGoal * 7 : null,
+      goalDate: forecast.goalDate,
+      targetWeightKg: forecast.targetWeightKg,
+      verdict: forecast.verdict,
+      /* Where the body is headed. The figure shows now, not this — but the
+         story panel quotes it, so it travels with the day. */
+      atGoal: forecast.weeksToGoal != null
+        ? forecast.weeks[forecast.weeksToGoal - 1] ?? null
+        : forecast.weeks.at(-1) ?? null,
+    },
     /* Remaining is clamped at zero going *down* only for display; the raw
        difference is kept too, because being 400 over matters and hiding it
        would be dishonest. */

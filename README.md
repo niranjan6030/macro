@@ -74,18 +74,33 @@ from your logged data first, and the model's only job is to write it up.
 - Reps in reserve, estimated 1RM, weekly hard sets per muscle
 - Rest days and cheat days are first-class, recorded rather than hidden
 
+**The figure**
+- A 3D body stands behind every screen and turns as you scroll
+- **It is your body.** The cross-sections are driven by your own lean mass and
+  body fat, so it changes as you log — slowly, by the amount the numbers moved
+- Two drivers, moving independently: fat-free mass index, which fat cannot
+  inflate, and body fat percentage. This is why 80 kg at 26% and 80 kg at 14%
+  are not the same figure in different sizes, but different shapes
+- Muscle relief is raised out of the surface by around forty anatomical
+  fields — pectorals, lats, glutes, quadriceps, the linea alba — each gated on
+  whether there is muscle to show *and* little enough fat over it to show
+  through. A strong person carrying fat renders smooth, because that is what
+  they look like
+- Abdominal separation appears at 15% body fat and not above it, which is
+  where it genuinely appears
+- Cavity shading is baked per vertex, so the grooves read as grooves. Without
+  it directional light cannot darken the gap between two pectorals — both its
+  walls face the lamp
+- Built in code, not loaded: no model file, nothing to fetch, no licence
+- Widths calibrated from real circumferences; proportions on the eight-head
+  canon, cross-checked against a reference silhouette
+
 **The look**
 - Monochrome, on black. The only colour in the app is the photograph of your
   own dinner
-- A 3D figure stands behind every screen and turns as you scroll
-- It is built in code, not loaded: about sixty numbers describing the body's
-  cross-section at each height, lofted into a surface. No model file, nothing
-  to fetch, no licence
-- Proportions are measured off a reference silhouette — eight heads tall,
-  shoulders 0.118 of height at the half-width, limbs far slimmer than they
-  first seem
-- Display type is Instrument Serif italic, and the headline crosses the figure
-  rather than sitting beside it
+- Scrolling the home screen walks through the day — calories left, protein,
+  carbs and fat, days to your goal — while the body turns behind it
+- Display type is Instrument Serif italic
 
 **Progress**
 - Front, side and back photos in a private bucket, served through URLs that
@@ -180,7 +195,7 @@ the code currently returns.
 npm run check
 ```
 
-25 assertions covering BMR against Mifflin–St Jeor by hand, the safety caps,
+34 assertions covering BMR against Mifflin–St Jeor by hand, the safety caps,
 that protein tracks lean mass, that the projection decelerates rather than
 running in a straight line, that an unreachable target is refused rather than
 given a date, the progression rules, and that implausible nutrition panels are
@@ -232,7 +247,9 @@ web/src/lib/
   fitness/energy.ts        BMR, TDEE, macro targets
   fitness/projection.ts    week-by-week bodyweight simulation
   fitness/training.ts      exercise library, splits, progression
+  fitness/physique.ts      composition -> widths, depth, definition
   three/body.ts            the figure, lofted from cross-sections
+  three/muscles.ts         muscle and fat relief, and the cavity map
   nutrition/types.ts       the canonical per-100 g shape, and plausibility
   nutrition/indian.ts      Indian staples as eaten
   nutrition/openfoodfacts.ts, usda.ts, search.ts
@@ -243,6 +260,7 @@ web/src/components/
   Scene.tsx                the figure, scroll-driven rotation, drifting dust
   Cosmos.tsx               grain and the corner frame
   Landing.tsx              the signed-out screen
+  ScrollStory.tsx          the day, told as you scroll
 web/src/app/api/           route handlers; each verifies the session first
 web/src/app/               Today, Food, Train, Progress, Coach, onboarding
 ```
@@ -259,10 +277,12 @@ web/src/app/               Today, Food, Train, Progress, Coach, onboarding
   precision it does not have.
 - **Open Food Facts is crowd-sourced.** Entries are checked against their own
   Atwater arithmetic before use, which catches gross errors but not subtle ones.
-- **The figure is scenery, not a scan of you.** It is one fixed athletic
-  build. Driving its proportions from your own lean mass and body fat would be
-  straightforward — the shape is already generated from numbers — but it does
-  not do that yet.
+- **The figure is an illustration of your numbers, not a scan of you.** It
+  knows your lean mass and your body fat, and it is honest about those. It does
+  not know your frame, your height distribution, where you personally store
+  fat, or your genetics — and those have a large say in what you actually look
+  like. Two people at 80 kg and 20% do not look identical, and this draws them
+  the same.
 - **None of this is medical advice.** The safety floors and rate caps are there
   for a reason. If something here disagrees with your doctor, your doctor is
   right.

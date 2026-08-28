@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildBody } from "@/lib/three/body";
+import { physiqueOf, type Composition } from "@/lib/fitness/physique";
+import { useBody } from "@/lib/bodyStore";
 
 /**
  * The figure, turning as you scroll.
@@ -19,11 +21,47 @@ import { buildBody } from "@/lib/three/body";
  */
 
 const CAP_DPR = 1.8;               // retina is wasted on a matte white body
-const IDLE_SPEED = 0.00022;        // slow drift when nobody is scrolling
+/* A slow sway, not a turntable. The figure is the person's own body and its
+   default state should be facing them; an unbounded drift meant it was
+   showing its back as often as its front, for no reason anyone asked for. */
+const SWAY_SPEED = 0.00034;
+const SWAY_RADIANS = 0.12;
 const SCROLL_TO_RADIANS = 0.0042;  // about a full turn per three screens
 
-export function Scene({ className }: { className?: string }) {
+/**
+ * The default body, for anyone not signed in or not set up yet.
+ *
+ * A real 178 cm, 80 kg man at 22% — around the middle of the range, which is
+ * where most people actually start. Not a shredded ideal: the landing screen
+ * should not open with a body nobody has.
+ */
+const DEFAULT_BODY: Composition = {
+  sex: "male", heightCm: 178, weightKg: 80, bodyFatPct: 22, leanKg: 80 * 0.78,
+};
+
+export function Scene({
+  className,
+  composition,
+}: {
+  className?: string;
+  /** The person's own body. Falls back to a neutral default. */
+  composition?: Composition | null;
+}) {
   const host = useRef<HTMLDivElement>(null);
+  const fromStore = useBody((s) => s.composition);
+
+  /* Rebuild only when the composition genuinely moves. Rounding first means a
+     50 g fluctuation on the scales does not rebuild 14,000 vertices, while a
+     real change still does. */
+  const physique = useMemo(() => {
+    const c = composition ?? fromStore ?? DEFAULT_BODY;
+    return physiqueOf({
+      ...c,
+      weightKg: Math.round(c.weightKg * 2) / 2,
+      bodyFatPct: Math.round(c.bodyFatPct * 2) / 2,
+      leanKg: Math.round(c.leanKg * 2) / 2,
+    });
+  }, [composition, fromStore]);
 
   useEffect(() => {
     const mount = host.current;
@@ -48,12 +86,19 @@ export function Scene({ className }: { className?: string }) {
     mount.appendChild(renderer.domElement);
 
     /* --- the figure ------------------------------------------------- */
-    const geometry = buildBody();
+    const geometry = buildBody(physique);
+    /* Grey clay, the way an anatomy sculpt is presented. A pure white body
+       blows out its own highlights and the relief disappears into them; a mid
+       grey keeps the whole tonal range available for form. */
     const material = new THREE.MeshStandardMaterial({
-      color: 0xf2f2f2,
-      roughness: 0.62,
-      metalness: 0.04,
-      flatShading: false,
+      color: 0xc4c4c4,
+      roughness: 0.78,
+      metalness: 0.0,
+      /* The baked cavity map multiplies in here. Without it the groove
+         between two pectorals stays as bright as the pectorals — both its
+         walls face the light — and the separation is invisible however the
+         lamps are arranged. */
+      vertexColors: true,
     });
     const body = new THREE.Mesh(geometry, material);
     body.scale.setScalar(2.0);
@@ -66,10 +111,14 @@ export function Scene({ className }: { className?: string }) {
     scene.add(group);
 
     /* --- light ------------------------------------------------------- */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.32));
+    /* Low ambient on purpose. Relief is read from the gradient between lit
+       and unlit, and filling the shadows flattens every muscle back into the
+       surface it was displaced out of. */
+    scene.add(new THREE.AmbientLight(0xffffff, 0.16));
 
-    const key = new THREE.DirectionalLight(0xffffff, 2.1);
-    key.position.set(1.1, 1.6, 1.4);
+    // Raking across the body rather than square on, so the form casts.
+    const key = new THREE.DirectionalLight(0xffffff, 2.3);
+    key.position.set(1.5, 1.5, 1.0);
     scene.add(key);
 
     // The rim is what makes it sculptural. Behind and above, so the edge of
@@ -78,9 +127,15 @@ export function Scene({ className }: { className?: string }) {
     rim.position.set(-1.6, 0.9, -1.5);
     scene.add(rim);
 
-    const fill = new THREE.DirectionalLight(0xffffff, 0.5);
-    fill.position.set(-0.8, -0.6, 1.2);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.42);
+    fill.position.set(-1.2, -0.5, 1.1);
     scene.add(fill);
+
+    // A dim underlight, so the undersides of the pecs and glutes do not read
+    // as holes cut in the figure.
+    const bounce = new THREE.DirectionalLight(0xffffff, 0.28);
+    bounce.position.set(0, -1.5, 0.6);
+    scene.add(bounce);
 
     /* --- dust -------------------------------------------------------- */
     const COUNT = 420;
@@ -147,7 +202,7 @@ export function Scene({ className }: { className?: string }) {
       raf = requestAnimationFrame(frame);
       if (!running) return;
 
-      if (!reduced) idle = t * IDLE_SPEED;
+      if (!reduced) idle = Math.sin(t * SWAY_SPEED) * SWAY_RADIANS;
       group.rotation.y = scrollRotation + idle;
       points.rotation.y = -(scrollRotation * 0.18) - idle * 0.4;
 
@@ -182,7 +237,7 @@ export function Scene({ className }: { className?: string }) {
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [physique]);
 
   return <div ref={host} aria-hidden className={className} />;
 }
