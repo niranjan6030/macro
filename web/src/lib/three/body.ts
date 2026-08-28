@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Physique } from "@/lib/fitness/physique";
-import { cavity, relief } from "./muscles";
+import { cavity, relief, type LimbCentres } from "./muscles";
 
 /**
  * A human figure, built rather than loaded.
@@ -190,43 +190,80 @@ interface Section {
   /** Depth as a factor of the figure's overall depth ratio. */
   d?: number;
   /**
-   * Push outboard far enough to clear the torso.
+   * Keep this section outboard enough to stay visible against the torso.
    *
    * Arm offsets are a factor of shoulder width, but the waist grows with fat
    * about nine times faster than the shoulder does — so on a heavier body the
    * forearm ends up inside the flank and the arms disappear into the ribs.
-   * This holds a gap open whatever the composition.
    */
   clear?: boolean;
+  /** Apply the elbow's carrying angle below this point. Arms only. */
+  carry?: boolean;
   z?: number;
   front?: number;
   back?: number;
   n?: number;
 }
 
+/*
+ * The sagittal curve.
+ *
+ * A spine is an S, not a pole, and this was the single least accurate thing
+ * about the figure: seen from the side it was a straight column, which reads
+ * as a shop mannequin however good the front view is. Since the whole thing
+ * turns as you scroll, the side is on screen as often as the front.
+ *
+ * These are `z` offsets of the *centre* of each cross-section, forward
+ * positive, as a fraction of stature. They follow standing posture, where a
+ * plumb line falls through the ear, the shoulder, the greater trochanter and
+ * just in front of the ankle:
+ *
+ *   sacrum      back, and the buttocks project behind it
+ *   lumbar L3   forward — the lordosis, the hollow of the lower back
+ *   thoracic T7 back — the kyphosis, the roundness of the upper back
+ *   cervical    forward again, carrying the head over the shoulders
+ *
+ * Applied to the centre line, so the front and back surfaces both move; the
+ * chest and belly are shaped separately by `front` and by the relief fields.
+ */
 const TORSO: Section[] = [
   /* The torso stops at the crotch, narrow enough to be hidden between the
      thighs. Two earlier versions got this wrong in opposite directions: one
      ended square at the hip and its flat cap showed as a bright rectangular
      panel, and the next tapered but ran 40 mm too far down, so the tail of it
      poked out between the legs. */
-  { y: 0.434, w: ["hip", 0.40], d: 0.88, n: 2.0 },
-  { y: 0.452, w: ["hip", 0.70], d: 0.92, n: 2.1 },
-  { y: 0.470, w: ["hip", 0.94], d: 0.97, n: 2.2, back: 1.16 },
-  { y: 0.500, w: ["hip", 1.00], d: 1.00, n: 2.15, back: 1.14 },
-  { y: 0.545, w: ["waist", 1.05], d: 1.00, n: 2.15, back: 1.04 },
-  { y: 0.578, w: ["waist", 1.00], d: 1.00, n: 2.1 },
-  { y: 0.618, w: ["waist", 1.07], d: 1.01, n: 2.1 },
-  { y: 0.662, w: ["chest", 0.92], d: 1.03, n: 2.1 },
-  { y: 0.706, w: ["chest", 1.00], d: 1.06, n: 2.1 },
-  { y: 0.752, w: ["chest", 1.08], d: 1.05, n: 2.1 },
-  { y: 0.790, w: ["shoulder", 1.00], d: 0.95, n: 2.1 },
-  { y: 0.812, w: ["shoulder", 0.89], d: 0.91, n: 2.2 },
-  { y: 0.830, w: ["shoulder", 0.60], d: 0.95, n: 2.2 },
-  { y: 0.848, w: ["neck", 1.00], d: 1.18, n: 2.4 },
-  { y: 0.872, w: ["neck", 0.92], d: 1.22, n: 2.4 },
-  { y: 0.886, w: ["neck", 0.94], d: 1.22, n: 2.4 },
+  { y: 0.434, w: ["hip", 0.40], d: 0.88, n: 2.0, z: -0.004 },
+  { y: 0.452, w: ["hip", 0.70], d: 0.92, n: 2.1, z: -0.006 },
+  { y: 0.470, w: ["hip", 0.94], d: 0.97, n: 2.2, back: 1.16, z: -0.005 },   // sacrum
+  { y: 0.500, w: ["hip", 1.00], d: 1.00, n: 2.15, back: 1.14, z: 0.000 },
+  { y: 0.545, w: ["waist", 1.05], d: 1.00, n: 2.15, back: 1.04, z: 0.006 },
+  { y: 0.578, w: ["waist", 1.00], d: 1.00, n: 2.1, z: 0.010 },              // lumbar apex
+  { y: 0.618, w: ["waist", 1.07], d: 1.01, n: 2.1, z: 0.004 },
+  { y: 0.662, w: ["chest", 0.92], d: 1.03, n: 2.1, z: -0.004 },
+  { y: 0.706, w: ["chest", 1.00], d: 1.06, n: 2.1, z: -0.010 },             // thoracic apex
+  { y: 0.752, w: ["chest", 1.08], d: 1.05, n: 2.1, z: -0.009 },
+  { y: 0.790, w: ["shoulder", 1.00], d: 0.95, n: 2.1, z: -0.006 },
+  { y: 0.812, w: ["shoulder", 0.89], d: 0.91, n: 2.2, z: -0.003 },
+  { y: 0.830, w: ["shoulder", 0.60], d: 0.95, n: 2.2, z: 0.001 },
+  { y: 0.848, w: ["neck", 1.00], d: 1.18, n: 2.4, z: 0.004 },               // cervical
+  { y: 0.872, w: ["neck", 0.92], d: 1.22, n: 2.4, z: 0.007 },
+  { y: 0.886, w: ["neck", 0.94], d: 1.22, n: 2.4, z: 0.008 },
 ];
+
+/*
+ * The carrying angle.
+ *
+ * A relaxed arm is not straight. The forearm angles away from the body at the
+ * elbow — about 11° in men and 13° in women, the wider female angle being a
+ * consequence of the wider pelvis. It is small, and leaving it out is one of
+ * those omissions nobody can name but everybody notices: perfectly straight
+ * arms are what makes a figure look moulded rather than standing.
+ *
+ * Applied below the elbow only, as an extra outward drift proportional to the
+ * distance down the forearm.
+ */
+const CARRY_ANGLE = { male: 0.030, female: 0.038 } as const;
+const ELBOW_Y = 0.636;
 
 /*
  * Note on `front` and `back`.
@@ -251,31 +288,161 @@ const ARM: Section[] = [
   { y: 0.800, w: ["upperArm", 1.62], x: ["shoulder", 0.60], d: 1.5 },
   { y: 0.780, w: ["upperArm", 1.42], x: ["shoulder", 0.74], d: 1.5 },
   { y: 0.750, w: ["upperArm", 1.20], x: ["shoulder", 0.85], d: 1.5, z: 0.002 },
-  { y: 0.720, w: ["upperArm", 1.10], x: ["shoulder", 0.92], d: 1.5, z: 0.004 },
-  { clear: true, y: 0.675, w: ["upperArm", 0.95], x: ["shoulder", 0.99], d: 1.5, z: 0.008 },
-  { clear: true, y: 0.636, w: ["upperArm", 0.80], x: ["shoulder", 1.03], d: 1.5, z: 0.012 },
-  { clear: true, y: 0.596, w: ["forearm", 1.10], x: ["shoulder", 1.07], d: 1.5, z: 0.016 },
-  { clear: true, y: 0.542, w: ["forearm", 0.90], x: ["shoulder", 1.10], d: 1.5, z: 0.020 },
-  { clear: true, y: 0.502, w: ["forearm", 0.67], x: ["shoulder", 1.12], d: 1.5, z: 0.023 },
-  { clear: true, y: 0.478, w: ["forearm", 0.86], x: ["shoulder", 1.13], d: 1.6, z: 0.026 },
-  { clear: true, y: 0.452, w: ["forearm", 0.71], x: ["shoulder", 1.13], d: 1.6, z: 0.028 },
-  { clear: true, y: 0.436, w: ["forearm", 0.29], x: ["shoulder", 1.13], d: 1.6, z: 0.028 },
+  { y: 0.720, w: ["upperArm", 1.10], x: ["shoulder", 0.92], d: 1.5, z: 0.004 },   // biceps
+  { clear: true, y: 0.675, w: ["upperArm", 0.95], x: ["shoulder", 0.95], d: 1.5, z: 0.008 },
+  /* The elbow is wider than the arm above and below it — it is bone, with
+     almost nothing over it, and it stands proud. Rounding straight through
+     was part of why the arm read as a tube. */
+  { clear: true, y: 0.645, w: ["upperArm", 0.86], x: ["shoulder", 0.96], d: 1.4, z: 0.011 },
+  { clear: true, carry: true, y: 0.632, w: ["upperArm", 0.82], x: ["shoulder", 0.97], d: 1.35, z: 0.013 },
+  { clear: true, carry: true, y: 0.596, w: ["forearm", 1.12], x: ["shoulder", 0.98], d: 1.5, z: 0.017 },  // forearm belly
+  { clear: true, carry: true, y: 0.542, w: ["forearm", 0.88], x: ["shoulder", 1.00], d: 1.5, z: 0.021 },
+  { clear: true, carry: true, y: 0.502, w: ["forearm", 0.62], x: ["shoulder", 1.01], d: 1.4, z: 0.024 },  // wrist
+  /* The hand.
+   *
+   * Hanging at the side the palm faces the thigh, so the hand's breadth —
+   * thumb to little finger — runs front to back, and its thickness runs side
+   * to side. It is a flat paddle seen edge-on, roughly three times as deep as
+   * it is thick. The previous version was very nearly circular, which is why
+   * it read as an egg on a stick.
+   *
+   * Fingertips finish at mid-thigh, which is where they really do land. */
+  { clear: true, carry: true, y: 0.486, w: ["forearm", 0.60], x: ["shoulder", 1.02], d: 2.7, z: 0.026 },
+  { clear: true, carry: true, y: 0.470, w: ["forearm", 0.64], x: ["shoulder", 1.02], d: 3.1, z: 0.028 },  // knuckles
+  { clear: true, carry: true, y: 0.452, w: ["forearm", 0.58], x: ["shoulder", 1.02], d: 2.9, z: 0.029 },
+  /* Tapered almost to nothing. A hand that stops at full width leaves the end
+     cap facing the camera as a flat rectangular chip. */
+  { clear: true, carry: true, y: 0.438, w: ["forearm", 0.36], x: ["shoulder", 1.02], d: 2.3, z: 0.029 },
+  { clear: true, carry: true, y: 0.430, w: ["forearm", 0.15], x: ["shoulder", 1.02], d: 1.3, z: 0.029 },
 ];
 
+/*
+ * The leg.
+ *
+ * The important correction here is that the legs *converge*. The femur runs
+ * medially from the hip socket to the knee — the hip joints are about 0.045 of
+ * stature either side of the midline, the knees about 0.035, the ankles about
+ * 0.030 — so a standing figure narrows from pelvis to floor. The previous
+ * table had the knee as the widest point of the whole leg, which bowed them
+ * outward and is most of why the lower half read as furniture.
+ *
+ * The knee itself is wider than the shin below it. It is bone with almost
+ * nothing over it and it stands proud; rounding straight through from thigh to
+ * calf loses the joint entirely.
+ */
 const LEG: Section[] = [
   { y: 0.478, w: ["thigh", 1.10], x: ["hip", 0.50], d: 1.10 },
-  { y: 0.420, w: ["thigh", 1.04], x: ["hip", 0.52], d: 1.10, front: 0.96 },
-  { y: 0.360, w: ["thigh", 0.98], x: ["hip", 0.58], d: 1.10 },
-  { y: 0.310, w: ["thigh", 0.83], x: ["hip", 0.59], d: 1.12 },
-  { y: 0.265, w: ["knee", 1.00], x: ["hip", 0.59], d: 1.12 },
-  { y: 0.222, w: ["calf", 1.03], x: ["hip", 0.58], d: 1.16, front: 0.86 },
-  { y: 0.170, w: ["calf", 0.90], x: ["hip", 0.57], d: 1.16, front: 0.86 },
-  { y: 0.105, w: ["calf", 0.63], x: ["hip", 0.54], d: 1.16 },
-  { y: 0.048, w: ["ankle", 1.00], x: ["hip", 0.53], d: 1.13 },
-  { y: 0.022, w: ["ankle", 1.27], x: ["hip", 0.54], d: 2.6, z: 0.012, n: 2.6 },
-  { y: 0.008, w: ["ankle", 1.20], x: ["hip", 0.55], d: 3.1, z: 0.020, n: 2.8 },
-  { y: 0.001, w: ["ankle", 0.87], x: ["hip", 0.55], d: 2.7, z: 0.022, n: 2.8 },
+  { y: 0.420, w: ["thigh", 1.05], x: ["hip", 0.47], d: 1.10, front: 0.96 },
+  { y: 0.360, w: ["thigh", 0.97], x: ["hip", 0.44], d: 1.10 },
+  { y: 0.310, w: ["thigh", 0.82], x: ["hip", 0.42], d: 1.12 },
+  { y: 0.278, w: ["knee", 1.06], x: ["hip", 0.41], d: 1.08 },              // above the knee
+  { y: 0.262, w: ["knee", 1.10], x: ["hip", 0.40], d: 1.05, front: 1.04 }, // the kneecap
+  { y: 0.246, w: ["knee", 0.98], x: ["hip", 0.40], d: 1.08 },
+  { y: 0.216, w: ["calf", 1.05], x: ["hip", 0.39], d: 1.30, front: 0.80 }, // calf belly, high and behind
+  { y: 0.170, w: ["calf", 0.92], x: ["hip", 0.38], d: 1.24, front: 0.84 },
+  { y: 0.105, w: ["calf", 0.62], x: ["hip", 0.37], d: 1.14 },
+  { y: 0.055, w: ["ankle", 1.02], x: ["hip", 0.36], d: 1.10 },
+  /* The foot.
+   *
+   * Longer than it was, and correctly so: foot length is about 15% of stature,
+   * which for a 178 cm man is 27 cm — so the toe box reaches well forward of
+   * the ankle and the heel a little behind it. The rising `z` down the stack
+   * tilts the sole so the arch lifts towards the ball of the foot; a flat slab
+   * reads as a plinth. `n` climbs towards 3 because a foot is not elliptical —
+   * it has a flat sole and a flat outer edge. */
+  { y: 0.032, w: ["ankle", 1.16], x: ["hip", 0.36], d: 2.6, z: 0.010, n: 2.5 },
+  { y: 0.018, w: ["ankle", 1.32], x: ["hip", 0.36], d: 3.6, z: 0.032, n: 2.8 },
+  { y: 0.008, w: ["ankle", 1.36], x: ["hip", 0.37], d: 4.0, z: 0.046, n: 3.0 },  // ball of the foot
+  { y: 0.003, w: ["ankle", 1.18], x: ["hip", 0.37], d: 3.6, z: 0.056, n: 3.0 },
+  { y: 0.000, w: ["ankle", 0.70], x: ["hip", 0.37], d: 2.2, z: 0.070, n: 3.0 },  // toes
 ];
+
+/**
+ * The head, lofted rather than sphered.
+ *
+ * A scaled sphere has no jaw. It tapers evenly to a point at the chin, where a
+ * real skull narrows sharply below the cheekbones and then squares off — and
+ * the difference is the whole reason a sphere on a neck reads as a mannequin
+ * however good the body is.
+ *
+ * Absolute widths, not multiples of anything: head size varies far less
+ * between people than torso width does, and tying it to bodyweight would give
+ * a heavy person a comically large skull. Eight heads tall puts the chin at
+ * 0.875 and the crown at 1.0, and a head is deeper than it is wide — about
+ * 195 mm front to back against 155 mm across — which is why every rz here
+ * exceeds its rx.
+ *
+ * Cranium slightly back of the face, because the skull's mass sits behind the
+ * jaw and the sagittal curve carries the whole head a little forward.
+ */
+const HEAD: Ring[] = [
+  { c: [0, 0.874, 0.008], rx: 0.016, rz: 0.024, n: 2.6 },   // point of the chin
+  { c: [0, 0.884, 0.007], rx: 0.028, rz: 0.038, n: 2.5 },   // jaw
+  { c: [0, 0.897, 0.006], rx: 0.037, rz: 0.048, n: 2.4 },   // jaw angle
+  { c: [0, 0.910, 0.005], rx: 0.042, rz: 0.053, n: 2.3 },   // cheekbone
+  { c: [0, 0.925, 0.004], rx: 0.045, rz: 0.056, n: 2.2 },   // eye line
+  { c: [0, 0.942, 0.002], rx: 0.046, rz: 0.057, n: 2.2 },   // widest of the cranium
+  { c: [0, 0.962, 0.000], rx: 0.043, rz: 0.053, n: 2.3 },
+  { c: [0, 0.980, -0.002], rx: 0.035, rz: 0.042, n: 2.4 },
+  { c: [0, 0.994, -0.002], rx: 0.020, rz: 0.024, n: 2.5 },
+  { c: [0, 1.000, -0.002], rx: 0.007, rz: 0.008, n: 2.5 },  // crown
+];
+
+/**
+ * How wide the torso is at a given height, half-width, before relief.
+ *
+ * Used to keep the arms clear of the body. Read from the same table the loft
+ * builds from, so the two cannot disagree.
+ */
+function torsoHalfWidth(p: Physique, y: number): number {
+  const built = shiftForSex(TORSO, p)
+    .map((s) => ({ y: s.y, w: p.w[s.w[0]] * s.w[1] }))
+    .sort((a, b) => a.y - b.y);
+
+  if (y <= built[0].y) return built[0].w;
+  const last = built[built.length - 1];
+  if (y >= last.y) return last.w;
+
+  let i = 0;
+  while (i < built.length - 2 && built[i + 1].y < y) i++;
+  const a = built[i], b = built[i + 1];
+  const span = b.y - a.y;
+  return span > 1e-6 ? a.w + ((y - a.y) / span) * (b.w - a.w) : a.w;
+}
+
+/**
+ * Where the centre of a limb is at a given height.
+ *
+ * The relief fields need this: the legs converge from hip to ankle and their
+ * spacing scales with pelvis width, so a quadriceps bump pinned to an absolute
+ * x lands centred on a narrow person and on the outside edge of the thigh on a
+ * broad one. Read straight off the same tables that build the geometry, so the
+ * muscles cannot drift away from the limbs they belong to.
+ */
+function limbCentres(p: Physique): LimbCentres {
+  const lookup = (sections: Section[]) => {
+    const built = shiftForSex(sections, p)
+      .map((s) => {
+        let offset = s.x ? p.w[s.x[0]] * s.x[1] : 0;
+        if (s.carry && s.y < ELBOW_Y) offset += (ELBOW_Y - s.y) * CARRY_ANGLE[p.sex];
+        return { y: s.y, x: offset };
+      })
+      .sort((m, n) => m.y - n.y);
+
+    return (y: number) => {
+      if (y <= built[0].y) return built[0].x;
+      const last = built[built.length - 1];
+      if (y >= last.y) return last.x;
+      let i = 0;
+      while (i < built.length - 2 && built[i + 1].y < y) i++;
+      const a = built[i], b = built[i + 1];
+      const span = b.y - a.y;
+      return span > 1e-6 ? a.x + ((y - a.y) / span) * (b.x - a.x) : a.x;
+    };
+  };
+
+  return { leg: lookup(LEG), arm: lookup(ARM) };
+}
 
 /** Turn a table of sections into rings, at this person's measurements. */
 /**
@@ -305,9 +472,24 @@ function rings(sections: Section[], p: Physique, side: 1 | -1 = 1): Ring[] {
   return shiftForSex(sections, p).map((s) => {
     const rx = p.w[s.w[0]] * s.w[1];
     let offset = s.x ? p.w[s.x[0]] * s.x[1] : 0;
+
+    // Below the elbow, the forearm swings out. See CARRY_ANGLE above.
+    if (s.carry && s.y < ELBOW_Y) {
+      offset += (ELBOW_Y - s.y) * CARRY_ANGLE[p.sex];
+    }
+
+    /* Hold the arm out against the torso — but against the torso *at this
+       height*, not against the widest part of it.
+     *
+     * The first version used the largest of the waist and the hip everywhere,
+     * which shoved the upper arms out at chest level and made the figure 61 cm
+     * across at the elbows, six centimetres wider than a real person. And it
+     * demanded a full arm's width of daylight, when a hanging arm genuinely
+     * rests against the lat: the constraint is not "no contact", it is "no
+     * more than about a third of the arm buried". */
     if (s.clear) {
-      // The widest the torso gets here, plus the arm's own radius, plus air.
-      offset = Math.max(offset, Math.max(p.w.waist, p.w.hip) * 1.04 + rx + 0.006);
+      const torso = torsoHalfWidth(p, s.y);
+      offset = Math.max(offset, torso + rx * 0.6);
     }
     const cx = s.x ? side * offset : 0;
     return {
@@ -336,18 +518,7 @@ export function buildBody(p: Physique): THREE.BufferGeometry {
     loft(rings(LEG, p, 1)), loft(rings(LEG, p, -1)),
   ];
 
-  /* Eight heads tall, so the skull is 0.125 of the figure. A head is an egg
-     rather than a ball, and the shallower cap on top is hair — which is most
-     of what stops a silhouette reading as a mannequin. */
-  const skull = new THREE.SphereGeometry(0.058, 64, 48);
-  skull.scale(0.84, 1.08, 0.94);
-  skull.translate(0, 0.934, 0.004);
-  parts.push(skull);
-
-  const hair = new THREE.SphereGeometry(0.0595, 64, 32);
-  hair.scale(0.88, 0.66, 0.97);
-  hair.translate(0, 0.958, -0.003);
-  parts.push(hair);
+  parts.push(loft(HEAD, RADIAL, 90));
 
   /* Breast tissue is mostly fat, so its size tracks adiposity and its
      position tracks the chest — it is not a fixed shape stamped on every
@@ -366,7 +537,7 @@ export function buildBody(p: Physique): THREE.BufferGeometry {
 
   const merged = mergeGeometries(parts);
   merged.computeVertexNormals();
-  applyRelief(merged, p);
+  applyRelief(merged, p, limbCentres(p));
 
   // Centre on the origin so it turns about its own axis, not its feet.
   merged.translate(0, -CENTRE_OFFSET, 0);
@@ -381,7 +552,13 @@ export function buildBody(p: Physique): THREE.BufferGeometry {
  * the normals can be recomputed from the displaced surface. A shader would
  * have to fake them, and the lighting is most of what sells the anatomy.
  */
-function applyRelief(g: THREE.BufferGeometry, p: Physique): void {
+/*
+ * Note the order: this runs on the geometry *before* it is centred on the
+ * origin, so `y` here is still the 0-to-1 standing space the tables are
+ * written in — the same space the relief fields use. Centring first, or
+ * offsetting here, would put every muscle half a body-height out.
+ */
+function applyRelief(g: THREE.BufferGeometry, p: Physique, limbs: LimbCentres): void {
   const pos = g.getAttribute("position") as THREE.BufferAttribute;
   const nor = g.getAttribute("normal") as THREE.BufferAttribute;
   const shade = new Float32Array(pos.count * 3);
@@ -390,14 +567,14 @@ function applyRelief(g: THREE.BufferGeometry, p: Physique): void {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const nx = nor.getX(i), ny = nor.getY(i), nz = nor.getZ(i);
 
-    const d = relief(x, y, z, nx, ny, nz, p);
+    const d = relief(x, y, z, nx, ny, nz, p, limbs);
     if (d !== 0) pos.setXYZ(i, x + nx * d, y + ny * d, z + nz * d);
 
     /* Cavity shading, baked into vertex colour. Sampled at the original
        position, before displacement — the field is defined on the base
        surface, and asking it about a point it has already moved gives the
        occlusion of somewhere the body no longer is. */
-    const ao = cavity(x, y, z, nx, ny, nz, p);
+    const ao = cavity(x, y, z, nx, ny, nz, p, limbs);
     shade[i * 3] = shade[i * 3 + 1] = shade[i * 3 + 2] = ao;
   }
 
@@ -458,13 +635,18 @@ export function torsoContainment(p: Physique): (x: number, y: number, z: number)
 
     const rx = (a.rx + (b.rx - a.rx) * f) * 0.98;
     const rz = (a.rz + (b.rz - a.rz) * f) * 0.98;
+    /* The centre line is no longer at z = 0 — the spine curves. Testing
+       against an assumed centre would place the whole torso volume a
+       centimetre or two off wherever the curve is deepest. */
+    const cz = a.c[2] + (b.c[2] - a.c[2]) * f;
     const n = (a.n ?? 2.3) + ((b.n ?? 2.3) - (a.n ?? 2.3)) * f;
     const front = (a.front ?? 1) + ((b.front ?? 1) - (a.front ?? 1)) * f;
     const back = (a.back ?? 1) + ((b.back ?? 1) - (a.back ?? 1)) * f;
 
-    const depth = rz * (z > 0 ? front : back);
+    const dz = z - cz;
+    const depth = rz * (dz > 0 ? front : back);
     // Superellipse test: |x/rx|^n + |z/rz|^n < 1 is inside.
-    return Math.pow(Math.abs(x / rx), n) + Math.pow(Math.abs(z / depth), n) < 1;
+    return Math.pow(Math.abs(x / rx), n) + Math.pow(Math.abs(dz / depth), n) < 1;
   };
 }
 

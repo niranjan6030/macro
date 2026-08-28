@@ -47,6 +47,23 @@ export interface Field {
   needsAbs?: boolean;
   /** Restrict to one sex. Omit for both. */
   only?: "male" | "female";
+  /**
+   * What `c[0]` is measured from.
+   *
+   * "torso" (the default) is an absolute distance from the centre line. For a
+   * limb that is wrong: the legs converge from hip to ankle and their spacing
+   * scales with pelvis width, so a quadriceps field pinned to an absolute x
+   * sits centred on a narrow person and out on the edge of the thigh on a
+   * broad one. Anchoring to the limb makes it an offset from wherever that
+   * limb's centre actually is at that height.
+   */
+  anchor?: "torso" | "leg" | "arm";
+}
+
+/** Where the centre of each limb is at a given height. */
+export interface LimbCentres {
+  leg: (y: number) => number;
+  arm: (y: number) => number;
 }
 
 const M = "muscle" as const;
@@ -74,12 +91,12 @@ export const FIELDS: Field[] = [
   { c: [0.045, 0.540, 0.045], r: [0.030, 0.016, 0.05], amp: -0.0040, face: "front", kind: M, needsAbs: true },
 
   { c: [0.100, 0.780, 0.028], r: [0.036, 0.036, 0.05], amp: 0.0105, face: "front", kind: M },  // front delt
-  { c: [0.114, 0.724, 0.022], r: [0.026, 0.040, 0.035], amp: 0.0095, face: "front", kind: M }, // biceps
-  { c: [0.128, 0.600, 0.020], r: [0.021, 0.038, 0.035], amp: 0.0060, face: "front", kind: M }, // forearm
+  { c: [0.000, 0.724, 0.022], r: [0.026, 0.040, 0.035], amp: 0.0095, face: "front", kind: M, anchor: "arm" }, // biceps
+  { c: [0.000, 0.600, 0.020], r: [0.021, 0.038, 0.035], amp: 0.0060, face: "front", kind: M, anchor: "arm" }, // forearm
 
-  { c: [0.052, 0.365, 0.042], r: [0.036, 0.080, 0.055], amp: 0.0105, face: "front", kind: M }, // quadriceps
-  { c: [0.036, 0.298, 0.038], r: [0.021, 0.032, 0.045], amp: 0.0080, face: "front", kind: M }, // teardrop
-  { c: [0.046, 0.195, 0.030], r: [0.016, 0.048, 0.035], amp: 0.0042, face: "front", kind: M }, // shin
+  { c: [0.002, 0.365, 0.042], r: [0.036, 0.080, 0.055], amp: 0.0105, face: "front", kind: M, anchor: "leg" }, // quadriceps
+  { c: [-0.010, 0.298, 0.038], r: [0.021, 0.032, 0.045], amp: 0.0080, face: "front", kind: M, anchor: "leg" }, // vastus medialis, on the inside
+  { c: [0.004, 0.195, 0.030], r: [0.016, 0.048, 0.035], amp: 0.0042, face: "front", kind: M, anchor: "leg" }, // shin
 
   /* ---- back ------------------------------------------------------ */
   { c: [0.000, 0.796, -0.048], r: [0.080, 0.052, 0.07], amp: 0.0105, face: "back", kind: M },  // traps
@@ -87,14 +104,14 @@ export const FIELDS: Field[] = [
   { c: [0.080, 0.692, -0.042], r: [0.042, 0.062, 0.06], amp: 0.0115, face: "back", kind: M },  // lats
   { c: [0.019, 0.612, -0.052], r: [0.015, 0.058, 0.05], amp: 0.0062, face: "back", kind: M },  // erectors
   { c: [0.102, 0.776, -0.028], r: [0.033, 0.033, 0.05], amp: 0.0085, face: "back", kind: M },  // rear delt
-  { c: [0.114, 0.720, -0.022], r: [0.025, 0.044, 0.035], amp: 0.0092, face: "back", kind: M }, // triceps
+  { c: [0.000, 0.720, -0.022], r: [0.025, 0.044, 0.035], amp: 0.0092, face: "back", kind: M, anchor: "arm" }, // triceps
   { c: [0.042, 0.474, -0.044], r: [0.048, 0.055, 0.075], amp: 0.0150, face: "back", kind: M },  // glutes
-  { c: [0.052, 0.372, -0.042], r: [0.034, 0.072, 0.055], amp: 0.0082, face: "back", kind: M }, // hamstrings
-  { c: [0.049, 0.220, -0.032], r: [0.028, 0.048, 0.045], amp: 0.0105, face: "back", kind: M }, // calves
+  { c: [0.000, 0.372, -0.042], r: [0.034, 0.072, 0.055], amp: 0.0082, face: "back", kind: M, anchor: "leg" }, // hamstrings
+  { c: [0.000, 0.220, -0.032], r: [0.028, 0.048, 0.045], amp: 0.0105, face: "back", kind: M, anchor: "leg" }, // calves
 
   /* ---- side ------------------------------------------------------ */
   { c: [0.116, 0.784, 0.000], r: [0.032, 0.034, 0.06], amp: 0.0090, face: "side", kind: M },   // lateral delt
-  { c: [0.126, 0.700, 0.000], r: [0.024, 0.040, 0.05], amp: 0.0050, face: "side", kind: M },   // brachialis
+  { c: [0.006, 0.700, 0.000], r: [0.024, 0.040, 0.05], amp: 0.0050, face: "side", kind: M, anchor: "arm" },   // brachialis
 
   /* ---- bone and face ---------------------------------------------
      Skeleton shows at any composition — it is what stops a lean figure
@@ -105,9 +122,9 @@ export const FIELDS: Field[] = [
   { c: [0.000, 0.836, 0.038], r: [0.011, 0.009, 0.03], amp: -0.0055, face: "front", kind: B }, // sternal notch
   { c: [0.019, 0.858, 0.028], r: [0.011, 0.024, 0.03], amp: 0.0040, face: "front", kind: B },  // sternocleidomastoid
   { c: [0.072, 0.540, 0.028], r: [0.022, 0.013, 0.04], amp: 0.0035, face: "front", kind: B },  // iliac crest
-  { c: [0.050, 0.268, 0.034], r: [0.021, 0.023, 0.03], amp: 0.0042, face: "front", kind: B },  // kneecap
-  { c: [0.128, 0.634, -0.018], r: [0.017, 0.017, 0.025], amp: 0.0035, face: "back", kind: B }, // elbow
-  { c: [0.048, 0.055, 0.004], r: [0.013, 0.013, 0.02], amp: 0.0030, face: "side", kind: B },   // ankle bone
+  { c: [0.000, 0.268, 0.034], r: [0.021, 0.023, 0.03], amp: 0.0042, face: "front", kind: B, anchor: "leg" },  // kneecap
+  { c: [0.000, 0.634, -0.018], r: [0.017, 0.017, 0.025], amp: 0.0035, face: "back", kind: B, anchor: "arm" }, // elbow
+  { c: [0.000, 0.055, 0.004], r: [0.013, 0.013, 0.02], amp: 0.0030, face: "side", kind: B, anchor: "leg" },   // ankle bone
   { c: [0.036, 0.802, -0.010], r: [0.014, 0.014, 0.03], amp: 0.0030, face: "back", kind: B },  // scapula spine
 
   /* The face. Not portraiture — just enough that the head has a front and a
@@ -139,7 +156,7 @@ export const FIELDS: Field[] = [
      the same. Without this the back of a soft body went dead flat. */
   { c: [0.042, 0.470, -0.042], r: [0.050, 0.058, 0.08], amp: 0.0155, face: "back", kind: B },
   { c: [0.044, 0.702, 0.050], r: [0.060, 0.048, 0.08], amp: 0.009, face: "front", kind: F },  // chest
-  { c: [0.052, 0.400, 0.030], r: [0.050, 0.095, 0.07], amp: 0.009, face: "any", kind: F },    // thigh
+  { c: [0.000, 0.400, 0.030], r: [0.050, 0.095, 0.07], amp: 0.009, face: "any", kind: F, anchor: "leg" },    // thigh
 
   /* Sex-specific fat.
    *
@@ -148,8 +165,8 @@ export const FIELDS: Field[] = [
    * alike. Without it a female figure is a male one with different widths,
    * which is exactly the mistake this whole model exists to avoid. */
   { c: [0.070, 0.470, -0.020], r: [0.055, 0.070, 0.10], amp: 0.026, face: "any", kind: F, only: "female" },  // hips
-  { c: [0.060, 0.380, 0.000], r: [0.050, 0.090, 0.09], amp: 0.022, face: "any", kind: F, only: "female" },   // outer thigh
-  { c: [0.110, 0.700, 0.000], r: [0.035, 0.060, 0.06], amp: 0.010, face: "any", kind: F, only: "female" },   // upper arm
+  { c: [0.010, 0.380, 0.000], r: [0.050, 0.090, 0.09], amp: 0.022, face: "any", kind: F, only: "female", anchor: "leg" },   // outer thigh
+  { c: [0.000, 0.700, 0.000], r: [0.035, 0.060, 0.06], amp: 0.010, face: "any", kind: F, only: "female", anchor: "arm" },   // upper arm
   { c: [0.000, 0.640, 0.060], r: [0.070, 0.075, 0.09], amp: 0.020, face: "front", kind: F, only: "male" },   // upper belly
 
   /* Female form that is not fat: a narrower ribcage below the bust, and the
@@ -169,6 +186,7 @@ export function relief(
   x: number, y: number, z: number,
   nx: number, ny: number, nz: number,
   p: Physique,
+  limbs?: LimbCentres,
 ): number {
   let total = 0;
 
@@ -193,8 +211,13 @@ export function relief(
     }
     if (gate <= 0.01) continue;
 
-    // Mirrored: a field given on the right applies to the left as well.
-    const dx = (f.c[0] === 0 ? x : Math.abs(x) - f.c[0]) / f.r[0];
+    /* Mirrored: a field given on the right applies to the left as well.
+       Limb-anchored fields measure from the limb's own centre at this height,
+       so they track the leg as it converges and as the pelvis widens. */
+    const centre = f.anchor && f.anchor !== "torso" && limbs
+      ? (f.anchor === "leg" ? limbs.leg(y) : limbs.arm(y))
+      : 0;
+    const dx = (f.c[0] === 0 && !centre ? x : Math.abs(x) - (centre + f.c[0])) / f.r[0];
     const dy = (y - f.c[1]) / f.r[1];
     const dz = (z - f.c[2]) / f.r[2];
 
@@ -229,8 +252,9 @@ export function cavity(
   x: number, y: number, z: number,
   nx: number, ny: number, nz: number,
   p: Physique,
+  limbs?: LimbCentres,
 ): number {
-  const here = relief(x, y, z, nx, ny, nz, p);
+  const here = relief(x, y, z, nx, ny, nz, p, limbs);
 
   // Two directions across the surface, perpendicular to the normal.
   const up: [number, number, number] = Math.abs(ny) > 0.9 ? [1, 0, 0] : [0, 1, 0];
@@ -244,7 +268,7 @@ export function cavity(
       const ox = x + t[0] * step * sign;
       const oy = y + t[1] * step * sign;
       const oz = z + t[2] * step * sign;
-      around += relief(ox, oy, oz, nx, ny, nz, p);
+      around += relief(ox, oy, oz, nx, ny, nz, p, limbs);
     }
   }
   around /= 4;
