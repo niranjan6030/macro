@@ -1,7 +1,9 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { SignIn } from "@/components/SignIn";
+import { standalone } from "@/lib/client";
 
 /**
  * The signed-out landing screen.
@@ -16,6 +18,12 @@ import { SignIn } from "@/components/SignIn";
  */
 export function Landing() {
   const [open, setOpen] = useState(false);
+
+  /* With no Firebase project there is nothing to sign in to, so offering a
+     sign-in button is a dead end — which is exactly what it was. The app runs
+     against the browser's own storage instead, and this says so plainly
+     rather than showing a button that cannot work. */
+  const local = standalone();
 
   return (
     <div className="relative min-h-[100svh] pb-16">
@@ -54,7 +62,20 @@ export function Landing() {
           not the scale.
         </p>
 
-        {!open ? (
+        {local ? (
+          <div className="space-y-3">
+            <Link href="/onboarding" className="btn btn-primary w-full">
+              Start now
+            </Link>
+            <p className="text-[11px] leading-relaxed text-[var(--color-mute)]">
+              No account needed. This deployment has no Firebase or Supabase
+              project connected, so Macro runs entirely in this browser — your
+              targets, your diary and your figure all work, and stay on this
+              device. Photo recognition and Macro AI need the backend; see
+              README sections 1 to 3 to connect it.
+            </p>
+          </div>
+        ) : !open ? (
           <div className="flex flex-wrap gap-2.5">
             <button onClick={() => setOpen(true)} className="btn btn-primary">
               Get started
@@ -69,10 +90,12 @@ export function Landing() {
           </Suspense>
         )}
 
-        <p className="text-[11px] leading-relaxed text-[var(--color-mute)]">
-          Your food, your training and your photos stay yours. Progress photos
-          are stored privately and are never sent to the AI.
-        </p>
+        {!local && (
+          <p className="text-[11px] leading-relaxed text-[var(--color-mute)]">
+            Your food, your training and your photos stay yours. Progress photos
+            are stored privately and are never sent to the AI.
+          </p>
+        )}
       </div>
     </div>
   );

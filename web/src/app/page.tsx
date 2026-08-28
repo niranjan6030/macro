@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Bed, Cookie, Scale, Dumbbell,
+  ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Bed, Cookie, Scale,
+  Dumbbell, Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { MacroBars, TrendChart } from "@/components/Rings";
@@ -104,9 +105,14 @@ export default function TodayPage() {
 
       <WeighIn value={data?.day.weight_kg ?? null} onSave={(kg) => patchDay({ weight_kg: kg })} />
 
-      <Link href="/train" className="btn btn-ghost w-full justify-start">
-        <Dumbbell size={18} /> Today&apos;s session
-      </Link>
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/train" className="btn btn-ghost justify-center">
+          <Dumbbell size={18} /> Session
+        </Link>
+        <Link href="/progress" className="btn btn-ghost justify-center">
+          <Sparkles size={18} /> Progress
+        </Link>
+      </div>
 
       <section>
         <div className="mb-3 flex items-center justify-between">

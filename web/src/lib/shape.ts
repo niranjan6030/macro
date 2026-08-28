@@ -121,3 +121,8 @@ export interface PhotosResponse {
   byPose: Record<string, (PhotoRow & { url: string | null })[]>;
   comparison: Record<string, { first: PhotoRow & { url: string | null }; latest: PhotoRow & { url: string | null } } | null>;
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}

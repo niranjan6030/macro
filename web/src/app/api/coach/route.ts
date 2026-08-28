@@ -53,7 +53,7 @@ export const GET = withUser(async (uid, req) => {
             { onConflict: "uid,on_date,kind" })
     .then(undefined, () => undefined);
 
-  return ok({ ...ctx, findings, body, cached: false, ai: coachConfigured });
+  return ok({ ...ctx, findings, body, cached: false, ai: coachConfigured() });
 });
 
 /** Everything the review is computed from, and everything the page shows. */

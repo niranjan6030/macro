@@ -1,7 +1,8 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
 import { type Food, forGrams } from "@/lib/nutrition/types";
 import { searchAll } from "@/lib/nutrition/search";
+import { aiConfigured, type ToolSpec } from "./provider";
+import { runRound } from "./run";
 
 /**
  * Read a photograph of a meal.
@@ -23,10 +24,9 @@ import { searchAll } from "@/lib/nutrition/search";
  * to confirm the grams before anything is logged.
  */
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 const MAX_IMAGE_BYTES = 5_000_000;
 
-export const visionConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
+export const visionConfigured = aiConfigured;
 
 export interface IdentifiedItem {
   /** What to show: "Chicken biryani". */
@@ -50,11 +50,11 @@ export interface IdentifyResult {
   message?: string;
 }
 
-const TOOL: Anthropic.Tool = {
+const TOOL: ToolSpec = {
   name: "record_foods",
   description:
     "Record every distinct food visible in the photograph. Call this exactly once.",
-  input_schema: {
+  parameters: {
     type: "object",
     properties: {
       not_food: {
@@ -134,8 +134,7 @@ Rules:
 - If there is no food in the image, set not_food and return an empty list.`;
 
 export async function identify(dataUrl: string): Promise<IdentifyResult> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
+  if (!aiConfigured()) {
     return { items: [], notFood: false, message: "Photo recognition is not configured." };
   }
 
@@ -144,33 +143,23 @@ export async function identify(dataUrl: string): Promise<IdentifyResult> {
     return { items: [], notFood: false, message: "That image could not be read." };
   }
 
-  const client = new Anthropic({ apiKey: key });
-
   let raw: RawResult;
   try {
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1500,
+    const res = await runRound({
       system: SYSTEM,
+      history: [{ role: "user", content: "Identify every food in this photograph." }],
+      image: { mediaType: parsed.mediaType, base64: parsed.base64 },
       tools: [TOOL],
-      tool_choice: { type: "tool", name: "record_foods" },
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: parsed.mediaType, data: parsed.base64 },
-          },
-          { type: "text", text: "Identify every food in this photograph." },
-        ],
-      }],
+      // The model must produce a structured record, never prose about the meal.
+      forceTool: "record_foods",
+      maxTokens: 1500,
     });
 
-    const block = res.content.find((c) => c.type === "tool_use");
-    if (!block || block.type !== "tool_use") {
+    const call = res.calls.find((c) => c.name === "record_foods");
+    if (!call) {
       return { items: [], notFood: false, message: "Could not read that photo. Try again." };
     }
-    raw = block.input as RawResult;
+    raw = call.args as unknown as RawResult;
   } catch (e) {
     console.error("[identify] vision call failed", e);
     return { items: [], notFood: false, message: "Photo recognition is unavailable right now." };

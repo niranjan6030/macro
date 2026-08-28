@@ -240,6 +240,9 @@ function IdentifiedCard({ item, date, onError, onSaved }: {
               date, grams,
               source: item.food!.source, source_id: item.food!.id,
               name: item.label,
+              // Carried for standalone mode, which has no server to re-fetch
+              // with. With a backend the id wins and this is ignored.
+              per_100g: item.food!.per100g,
             });
             await tapFeedback();
             setDone(true); onSaved();
@@ -430,6 +433,9 @@ function PortionPicker({ food, date, onError, onSaved, onBack }: {
           try {
             await post("/api/diary", {
               date, grams, source: food.source, source_id: food.id,
+              name: food.name, brand: food.brand,
+              confidence: food.confidence,
+              per_100g: food.per100g,
               ...(meal ? { meal } : {}),
             });
             await tapFeedback();

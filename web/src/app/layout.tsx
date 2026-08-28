@@ -3,6 +3,7 @@ import { Instrument_Serif, Red_Hat_Display } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { TabBar } from "@/components/TabBar";
 import { Frame, Grain } from "@/components/Cosmos";
+import { ServiceWorker } from "@/components/InstallApp";
 import { Scene } from "@/components/Scene";
 import "./globals.css";
 
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Scene className="pointer-events-none fixed inset-0 -z-20" />
         <Grain />
         <Frame />
+        <ServiceWorker />
         <AuthProvider>
           <main className="safe-top mx-auto w-full max-w-lg px-4">{children}</main>
           <TabBar />

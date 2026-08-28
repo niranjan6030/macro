@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { LogOut, Settings2, Loader2 } from "lucide-react";
+import { LogOut, Settings2, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { Landing } from "@/components/Landing";
+import { InstallApp } from "@/components/InstallApp";
 import { get } from "@/lib/client";
 import type { ProfileResponse } from "@/lib/shape";
 
@@ -62,11 +63,15 @@ export default function AccountPage() {
         </section>
       )}
 
+      <InstallApp />
+
       <Link href="/onboarding" className="btn btn-ghost w-full">
         <Settings2 size={18} /> {p?.onboarded_at ? "Edit your details" : "Finish setting up"}
       </Link>
 
-      <Link href="/coach" className="btn btn-ghost w-full">Weekly review</Link>
+      <Link href="/progress" className="btn btn-ghost w-full">
+        <Sparkles size={18} /> Progress photos and measurements
+      </Link>
 
       <button
         onClick={async () => { await signOut(); router.replace("/account"); router.refresh(); }}
