@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+/*
+ * Macro is used in two places: at a table, and standing in a gym holding a
+ * phone with one hand. The second one drives the design — large tap targets,
+ * numbers readable at arm's length, and a dark ground that does not blind
+ * anyone at 6am or wash out under gym strip lighting.
+ */
+
+@theme {
+  --color-ink: #06080c;          /* page */
+  --color-slab: #0e131b;         /* cards */
+  --color-slab-2: #161d28;       /* raised */
+  --color-line: #232c3a;
+  --color-mute: #7d8899;
+  --color-chalk: #eef2f7;
+
+  --color-volt: #c8ff2d;         /* the one accent: targets, progress, action */
+  --color-volt-dim: #8aab1f;
+
+  --color-protein: #4ea8ff;
+  --color-carbs: #ffb648;
+  --color-fat: #ff6b8a;
+  --color-fibre: #57d9a3;
+
+  --color-warn: #ffb648;
+  --color-bad: #ff6b8a;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Tabular figures matter here: a weight that jumps sideways as it counts
+     up reads as broken. */
+  --font-num: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --radius-card: 18px;
+}
+
+html {
+  background: var(--color-ink);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-chalk);
+  font-family: var(--font-sans);
+  /* Room for the tab bar, plus the home indicator on an iPhone. */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  overscroll-behavior-y: none;
+}
+
+/* The native shell sits under the status bar. */
+.safe-top { padding-top: env(safe-area-inset-top); }
+
+@layer components {
+  .card {
+    background: var(--color-slab);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+  }
+
+  .num {
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    min-height: 48px; padding: 0 1.15rem;
+    border-radius: 12px; font-weight: 600; font-size: 0.95rem;
+    transition: opacity 0.15s, transform 0.08s;
+    cursor: pointer;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .btn-primary { background: var(--color-volt); color: #0a0f04; }
+  .btn-ghost {
+    background: var(--color-slab-2);
+    color: var(--color-chalk);
+    border: 1px solid var(--color-line);
+  }
+
+  .field {
+    width: 100%; min-height: 48px;
+    background: var(--color-slab-2);
+    border: 1px solid var(--color-line);
+    border-radius: 12px;
+    padding: 0 0.9rem;
+    color: var(--color-chalk);
+    font-size: 1rem;                 /* under 16px, iOS zooms the whole page */
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-volt-dim);
+  }
+  .field::placeholder { color: var(--color-mute); }
+
+  .label {
+    display: block;
+    font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--color-mute);
+    margin-bottom: 0.4rem;
+  }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem; font-weight: 600;
+    background: var(--color-slab-2);
+    border: 1px solid var(--color-line);
+    color: var(--color-mute);
+  }
+}
+
+/* Respect the system setting rather than animating regardless. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
