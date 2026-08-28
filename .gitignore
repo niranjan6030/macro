@@ -42,3 +42,6 @@ web/android/capacitor-cordova-android-plugins/
 # macOS
 .DS_Store
 *.swp
+
+# Incremental TypeScript build cache
+web/*.tsbuildinfo
