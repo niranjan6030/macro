@@ -7,6 +7,7 @@ import { LogOut, Settings2, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { Landing } from "@/components/Landing";
 import { InstallApp } from "@/components/InstallApp";
+import { Glossary } from "@/components/Explain";
 import { get } from "@/lib/client";
 import type { ProfileResponse } from "@/lib/shape";
 
@@ -72,6 +73,8 @@ export default function AccountPage() {
       <Link href="/progress" className="btn btn-ghost w-full">
         <Sparkles size={18} /> Progress photos and measurements
       </Link>
+
+      <Glossary />
 
       <button
         onClick={async () => { await signOut(); router.replace("/account"); router.refresh(); }}

@@ -5,8 +5,12 @@ import {
 } from "@/lib/fitness/energy";
 import { project } from "@/lib/fitness/projection";
 import { forGrams, sum, EMPTY, type Nutrients } from "@/lib/nutrition/types";
+import {
+  SPLITS, byId as exerciseById, nextPrescription, splitFor, weekPlan, weeklyVolume,
+  type SplitName,
+} from "@/lib/fitness/training";
 import type {
-  DayResponse, DiaryEntry, ProfileResponse, StoredProfile, Day,
+  DayResponse, DiaryEntry, ProfileResponse, StoredProfile, Day, PlanResponse,
 } from "@/lib/shape";
 
 /**
@@ -246,4 +250,58 @@ function guessMeal(): DiaryEntry["meal"] {
   if (h < 16) return "lunch";
   if (h < 22) return "dinner";
   return "snack";
+}
+
+
+/**
+ * Today's session, worked out locally.
+ *
+ * The split and the week's layout are pure functions of how many days someone
+ * trains, so they need no server at all. What standalone mode genuinely
+ * cannot do is progression: that reads your last session for each lift, and
+ * without saved workouts there is nothing to read. Every exercise therefore
+ * comes back as a first time, which is honest — it is what the server would
+ * say too, for someone who has never logged a set.
+ */
+export function demoPlan(date: string): PlanResponse {
+  const s = read();
+  const days = s.profile?.training_days ?? 3;
+  const stored = s.profile?.split as SplitName | null | undefined;
+  const split: SplitName = stored && stored in SPLITS ? stored : splitFor(days);
+
+  const week = weekPlan(days, split);
+  // Monday-first, matching weekPlan.
+  const dow = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const session = week[dow];
+  const rest = s.days[date]?.rest_day === true;
+
+  const shared = {
+    date,
+    split,
+    splitLabel: SPLITS[split].label,
+    blurb: SPLITS[split].blurb,
+    week: week.map((x) => x?.name ?? null),
+    weeklyVolume: weeklyVolume(SPLITS[split].sessions),
+  };
+
+  if (rest || !session) {
+    return {
+      ...shared,
+      restDay: true,
+      session: null,
+      reason: rest
+        ? "You marked today as a rest day."
+        : "Rest day — this is where the training you already did turns into muscle.",
+    };
+  }
+
+  return {
+    ...shared,
+    restDay: false,
+    session: { name: session.name, focus: session.focus },
+    exercises: session.exerciseIds
+      .map(exerciseById)
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .map((ex) => ({ ...ex, last: null, prescription: nextPrescription(ex, null) })),
+  };
 }

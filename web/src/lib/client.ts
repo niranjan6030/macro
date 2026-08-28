@@ -59,27 +59,47 @@ export const put = <T>(url: string, data: unknown) =>
   request<T>(url, { method: "PUT", body: JSON.stringify(data) });
 export const del = <T>(url: string) => request<T>(url, { method: "DELETE" });
 
-/** Today, in the browser's timezone. The server never guesses this. */
+/*
+ * Calendar dates, handled carefully.
+ *
+ * A day here is a label — "what did I eat on the 28th" — not an instant, and
+ * mixing the two is the bug this file used to have. `new Date("2026-08-28T00:00:00")`
+ * parses as *local* midnight, and `.toISOString()` then formats it as *UTC*.
+ * Anywhere east of Greenwich that lands on the previous evening, so the date
+ * came back a day earlier than it went in.
+ *
+ * In India, +5:30, that meant stepping forward a day landed on the same date —
+ * the arrow looked broken — and stepping back moved two.
+ *
+ * So: parse as UTC, do the arithmetic in UTC, format from UTC. The only place
+ * the local clock is consulted is `today`, which is the one function that
+ * genuinely asks what date it is *here*.
+ */
+
+/** Today, on the wall clock of whoever is holding the phone. */
 export function today(): string {
   const d = new Date();
+  // Shift by the offset so the UTC getters read out the local date.
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000)
     .toISOString().slice(0, 10);
 }
 
+/** Move a calendar date by whole days. Timezone-independent. */
+export const shiftDate = (iso: string, days: number): string =>
+  new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000)
+    .toISOString().slice(0, 10);
+
 export function prettyDate(iso: string): string {
   const t = today();
   if (iso === t) return "Today";
-  const y = new Date(new Date(`${t}T00:00:00`).getTime() - 86_400_000)
-    .toISOString().slice(0, 10);
-  if (iso === y) return "Yesterday";
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "short", day: "numeric", month: "short",
+  if (iso === shiftDate(t, -1)) return "Yesterday";
+  if (iso === shiftDate(t, 1)) return "Tomorrow";
+
+  // Formatted in UTC too, or the label can disagree with the date it names.
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, {
+    weekday: "short", day: "numeric", month: "short", timeZone: "UTC",
   });
 }
-
-export const shiftDate = (iso: string, days: number): string =>
-  new Date(new Date(`${iso}T00:00:00`).getTime() + days * 86_400_000)
-    .toISOString().slice(0, 10);
 
 
 /* ------------------------------------------------------------------ */
@@ -146,11 +166,15 @@ async function servedLocally<T>(url: string, init?: RequestInit): Promise<T | ty
     }
   }
 
-  /* Everything else — the coach, photo recognition, progress photos, saved
-     workouts — genuinely needs a server, and says so rather than pretending. */
+  if (path === "/api/plan" && method === "GET") {
+    return demo.demoPlan(parsed.searchParams.get("date") ?? today()) as T;
+  }
+
+  /* Everything else — Macro AI, photo recognition, progress photos, saved
+     workout history — genuinely needs a server, and says so rather than
+     pretending. Sets logged in standalone mode live only in the page. */
   if (path.startsWith("/api/chat") || path.startsWith("/api/coach")
-      || path.startsWith("/api/food/identify") || path.startsWith("/api/progress")
-      || path.startsWith("/api/workouts")) {
+      || path.startsWith("/api/progress") || path.startsWith("/api/workouts")) {
     throw new ApiError(
       "This part needs the backend connected. See README, sections 1 and 2.",
       503,

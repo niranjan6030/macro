@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Instrument_Serif, Red_Hat_Display } from "next/font/google";
+import { Open_Sans } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { TabBar } from "@/components/TabBar";
 import { Frame, Grain } from "@/components/Cosmos";
@@ -7,17 +7,23 @@ import { ServiceWorker } from "@/components/InstallApp";
 import { Scene } from "@/components/Scene";
 import "./globals.css";
 
-/* One line per screen is set in the serif italic; everything functional is
-   the sans. Loaded through next/font so they are self-hosted and there is no
-   layout shift while a webfont arrives over gym wifi. */
-const serif = Instrument_Serif({
-  subsets: ["latin"], weight: "400", style: "italic",
-  variable: "--font-display-serif", display: "swap",
-});
-
-const sans = Red_Hat_Display({
-  subsets: ["latin"], weight: ["400", "500", "600", "700"],
-  variable: "--font-display-sans", display: "swap",
+/* One family, across the whole app.
+ *
+ * There was a high-contrast serif italic on the headlines. It looked good in a
+ * screenshot and read badly in use: the thin strokes disappeared against the
+ * lit figure behind them, and italics at a glance, on a phone, in a gym, are
+ * simply slower to read than upright text.
+ *
+ * Open Sans is the opposite trade — open apertures, a tall x-height, and it
+ * holds up at small sizes and low contrast. Hierarchy comes from weight and
+ * size instead of from a change of voice. Loaded through next/font so it is
+ * self-hosted and there is no layout shift while a webfont arrives over gym
+ * wifi. */
+const sans = Open_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-display-sans",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -46,7 +52,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${serif.variable} ${sans.variable}`}>
+    <html lang="en" className={sans.variable}>
       <body>
         {/* The default figure, behind every screen. The home screen mounts its
             own in place of this one, built from the signed-in person's body. */}

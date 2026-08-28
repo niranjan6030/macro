@@ -126,3 +126,12 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+export interface EstimateResponse {
+  per100g: Nutrients;
+  ingredients: { name: string; grams: number; kcal: number; matched: boolean }[];
+  serves: number;
+  totalGrams: number;
+  note?: string;
+  error?: string;
+}

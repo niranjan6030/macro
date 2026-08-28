@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Camera, Search, Loader2, Check, ArrowLeft, Info, ScanLine, Plus,
+  Camera, Search, Loader2, Check, ArrowLeft, Info, ScanLine, Plus, Sparkles,
 } from "lucide-react";
 import { get, post, today } from "@/lib/client";
 import { isNative, nativePhoto, tapFeedback } from "@/lib/native";
-import type { Food, IdentifyResponse, IdentifiedItemShape, Nutrients } from "@/lib/shape";
+import type {
+  Food, IdentifyResponse, IdentifiedItemShape, Nutrients, EstimateResponse,
+} from "@/lib/shape";
 
 export default function FoodPage() {
   return <Suspense fallback={null}><FoodLogger /></Suspense>;
@@ -460,9 +462,41 @@ function ManualTab({ date, onError, onSaved }: {
   date: string; onError: (m: string) => void; onSaved: () => void;
 }) {
   const [name, setName] = useState("");
+  const [what, setWhat] = useState("");
   const [grams, setGrams] = useState("100");
   const [per, setPer] = useState({ kcal: "", protein: "", carbs: "", fat: "", fibre: "" });
   const [busy, setBusy] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
+
+  /* Estimating is the point of this tab. A packet has a panel to copy; your
+     mother's sambar does not, and asking someone to invent one is how a food
+     diary quietly becomes fiction. */
+  async function guess() {
+    if (!name.trim() || thinking) return;
+    setThinking(true); onError(""); setEstimate(null);
+    try {
+      const res = await post<EstimateResponse>("/api/food/estimate", {
+        dish: name, description: what,
+      });
+      if (res.error) { onError(res.error); return; }
+      setEstimate(res);
+      setPer({
+        kcal: String(res.per100g.kcal),
+        protein: String(res.per100g.protein),
+        carbs: String(res.per100g.carbs),
+        fat: String(res.per100g.fat),
+        fibre: String(res.per100g.fibre),
+      });
+      if (res.serves > 0 && res.totalGrams > 0) {
+        setGrams(String(Math.round(res.totalGrams / res.serves)));
+      }
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Could not estimate that.");
+    } finally {
+      setThinking(false);
+    }
+  }
 
   return (
     <form
@@ -472,7 +506,8 @@ function ManualTab({ date, onError, onSaved }: {
         try {
           await post("/api/diary", {
             date, name, grams: Number(grams),
-            source: "custom",
+            source: estimate ? "estimate" : "custom",
+            confidence: "estimated",
             per_100g: {
               kcal: Number(per.kcal) || 0, protein: Number(per.protein) || 0,
               carbs: Number(per.carbs) || 0, fat: Number(per.fat) || 0,
@@ -480,29 +515,72 @@ function ManualTab({ date, onError, onSaved }: {
             },
           });
           await tapFeedback();
-          onSaved(); setName(""); setPer({ kcal: "", protein: "", carbs: "", fat: "", fibre: "" });
+          onSaved();
+          setName(""); setWhat(""); setEstimate(null);
+          setPer({ kcal: "", protein: "", carbs: "", fat: "", fibre: "" });
         } catch (e2) {
           onError(e2 instanceof Error ? e2.message : "Could not save that.");
         } finally { setBusy(false); }
       }}
     >
-      <p className="text-xs leading-relaxed text-[var(--color-mute)]">
-        Copy the panel off the packet. Enter the <strong>per 100 g</strong> column —
-        Macro scales it to what you actually ate, which is where per-serving figures
-        usually go wrong.
-      </p>
-
       <div>
-        <label className="label" htmlFor="fname">Name</label>
+        <label className="label" htmlFor="fname">What is it?</label>
         <input id="fname" required className="field" value={name}
                onChange={(e) => setName(e.target.value)} placeholder="Amma's sambar" />
       </div>
+
+      <div>
+        <label className="label" htmlFor="what">What went into it? (optional)</label>
+        <textarea id="what" rows={2} className="field py-2.5" value={what}
+                  onChange={(e) => setWhat(e.target.value)}
+                  placeholder="Toor dal, drumstick, tamarind, 2 tbsp oil, serves 4" />
+        <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--color-mute)]">
+          The more you say, the closer it lands. Oil especially — it is usually the
+          biggest number in a home-cooked dish and the easiest to leave out.
+        </p>
+      </div>
+
+      <button type="button" onClick={guess} disabled={!name.trim() || thinking}
+              className="btn btn-ghost w-full">
+        {thinking ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+        {thinking ? "Working it out" : "Estimate it for me"}
+      </button>
+
+      {estimate && (
+        <div className="card p-3.5">
+          <p className="text-xs font-semibold">
+            Estimated from {estimate.ingredients.length} ingredients
+            {estimate.serves > 1 && `, serving ${estimate.serves}`}
+          </p>
+          <ul className="num mt-2 space-y-1 text-[11px] text-[var(--color-mute)]">
+            {estimate.ingredients.map((ing, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span className="truncate">
+                  {ing.name}
+                  {!ing.matched && (
+                    <span className="ml-1 text-[var(--color-warn)]">not found</span>
+                  )}
+                </span>
+                <span className="shrink-0">{ing.grams} g · {ing.kcal} kcal</span>
+              </li>
+            ))}
+          </ul>
+          {estimate.note && (
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-warn)]">{estimate.note}</p>
+          )}
+          <p className="mt-2 border-t border-[var(--color-line)] pt-2 text-[11px] leading-relaxed text-[var(--color-mute)]">
+            Every ingredient was looked up in a real database and the totals added up
+            here — no calorie figure came from the AI. The <em>recipe</em> is the guess.
+            Correct any line by editing the numbers below.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         {([["kcal", "Calories"], ["protein", "Protein (g)"], ["carbs", "Carbs (g)"],
            ["fat", "Fat (g)"], ["fibre", "Fibre (g)"]] as const).map(([k, label]) => (
           <div key={k}>
-            <label className="label" htmlFor={k}>{label}</label>
+            <label className="label" htmlFor={k}>{label} <span className="normal-case tracking-normal">/100 g</span></label>
             <input id={k} inputMode="decimal" className="field num" value={per[k]}
                    onChange={(e) => setPer({ ...per, [k]: e.target.value })} placeholder="0" />
           </div>

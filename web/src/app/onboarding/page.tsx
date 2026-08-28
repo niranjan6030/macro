@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, Loader2, Check } from "lucide-react";
 import { get, put, today } from "@/lib/client";
+import { Explain } from "@/components/Explain";
 import { ACTIVITY_LABEL, type ActivityLevel, type Goal, type Sex } from "@/lib/fitness/energy";
 import type { ProfileResponse } from "@/lib/shape";
 
@@ -203,6 +204,12 @@ export default function Onboarding() {
               <Stat label="Maintenance" value={`${result.targets.tdee} kcal`} />
               <Stat label="BMR" value={`${result.targets.bmr} kcal`} />
             </dl>
+
+            <div className="mt-4 space-y-2 border-t border-[var(--color-line)] pt-3">
+              <Explain id="bmr" />
+              <Explain id="tdee" />
+              <Explain id="protein" />
+            </div>
           </div>
 
           {result.projection && (

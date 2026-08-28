@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Loader2, Check, Bed, Plus, TrendingUp, Info } from "lucide-react";
-import { get, post, put, today } from "@/lib/client";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Check, Bed, Plus, TrendingUp, Info, ListPlus, X } from "lucide-react";
+import { get, post, put, standalone, today } from "@/lib/client";
 import { useResource } from "@/lib/useResource";
 import { tapFeedback } from "@/lib/native";
-import type { PlanResponse, PlanExercise } from "@/lib/shape";
+import type { PlanResponse, PlanExercise, ProfileResponse } from "@/lib/shape";
+import { TrainPicker } from "@/components/TrainPicker";
+import { nextPrescription, type Exercise } from "@/lib/fitness/training";
+import type { Activity } from "@/lib/fitness/activities";
+import { useBody } from "@/lib/bodyStore";
 
 /**
  * Today's session.
@@ -18,6 +22,47 @@ export default function TrainPage() {
   const date = today();
   const [workoutId, setWorkoutId] = useState<string | null>(null);
 
+  /* Anything added by hand, on top of what the programme prescribed. Kept in
+     component state rather than refetched: the plan is what you were told to
+     do, and this is what you actually did. */
+  const [extra, setExtra] = useState<PlanExercise[]>([]);
+  const [picking, setPicking] = useState(false);
+  const [logged, setLogged] = useState<{ name: string; minutes: number; kcal: number }[]>([]);
+
+  /* Calorie cost scales directly with bodyweight, so a hard-coded figure
+     would be wrong for everyone but one person.
+     
+     The home screen publishes the real weight into the body store, but landing
+     straight on this tab — from the tab bar, or from the app's own shortcut —
+     means it has never run, and the burn came out computed against a fallback.
+     So this fetches it as well, and takes whichever arrives first. */
+  const fromStore = useBody((b) => b.composition?.weightKg);
+  const [fetchedWeight, setFetchedWeight] = useState<number | null>(null);
+  const setComposition = useBody((b) => b.setComposition);
+
+  useEffect(() => {
+    if (fromStore != null) return;
+    let live = true;
+    get<ProfileResponse>("/api/profile")
+      .then((p) => {
+        if (!live) return;
+        if (p.weightKg != null) setFetchedWeight(p.weightKg);
+        if (p.complete && p.targets && p.profile?.sex && p.profile.height_cm && p.weightKg) {
+          setComposition({
+            sex: p.profile.sex,
+            heightCm: Number(p.profile.height_cm),
+            weightKg: p.weightKg,
+            bodyFatPct: p.targets.bodyFatPct,
+            leanKg: p.targets.leanKg,
+          });
+        }
+      })
+      .catch(() => { /* the fallback below covers it */ });
+    return () => { live = false; };
+  }, [fromStore, setComposition]);
+
+  const bodyWeight = fromStore ?? fetchedWeight ?? 75;
+
   const fetcher = useCallback(
     () => get<PlanResponse>(`/api/plan?date=${date}`),
     [date],
@@ -28,6 +73,10 @@ export default function TrainPage() {
   // the tab and walking away does not leave an empty workout in the history.
   const ensureWorkout = useCallback(async () => {
     if (workoutId) return workoutId;
+    /* Standalone has nowhere to persist a session, so sets stay on the page
+       for the day. Saying so beats a 503 the moment someone logs their first
+       set of the first exercise they try. */
+    if (standalone()) { setWorkoutId("local"); return "local"; }
     const { workout } = await post<{ workout: { id: string } }>("/api/workouts", {
       date, name: plan?.session?.name ?? "Session", split: plan?.split,
     });
@@ -48,6 +97,26 @@ export default function TrainPage() {
         </h1>
       </header>
 
+      {picking && (
+        <section className="card p-4">
+          <TrainPicker
+            weightKg={bodyWeight}
+            onClose={() => setPicking(false)}
+            onPickExercise={(ex: Exercise) => {
+              setExtra((list) =>
+                list.some((e) => e.id === ex.id)
+                  ? list
+                  : [...list, { ...ex, last: null, prescription: nextPrescription(ex, null) }]);
+              setPicking(false);
+            }}
+            onLogActivity={async (a: Activity, minutes, kcal) => {
+              setLogged((l) => [...l, { name: a.name, minutes, kcal }]);
+              setPicking(false);
+            }}
+          />
+        </section>
+      )}
+
       {error && <p role="alert" className="card p-4 text-sm text-[var(--color-bad)]">{error}</p>}
 
       {plan?.restDay && (
@@ -63,9 +132,38 @@ export default function TrainPage() {
         </div>
       )}
 
-      {!plan?.restDay && plan?.exercises?.map((ex) => (
+      {!picking && !plan?.restDay && [...(plan?.exercises ?? []), ...extra].map((ex) => (
         <ExerciseCard key={ex.id} ex={ex} ensureWorkout={ensureWorkout} onError={setError} />
       ))}
+
+      {!picking && logged.length > 0 && (
+        <section className="card p-4">
+          <h2 className="label">Also today</h2>
+          <ul className="divide-y divide-[var(--color-line)]">
+            {logged.map((l, i) => (
+              <li key={i} className="flex items-center justify-between py-2.5 text-sm">
+                <span>{l.name}</span>
+                <span className="num text-xs text-[var(--color-mute)]">
+                  {l.minutes} min · {l.kcal} kcal
+                </span>
+                <button
+                  aria-label={`Remove ${l.name}`}
+                  onClick={() => setLogged((all) => all.filter((_, j) => j !== i))}
+                  className="ml-3 text-[var(--color-mute)]"
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {!picking && (
+        <button onClick={() => setPicking(true)} className="btn btn-ghost w-full">
+          <ListPlus size={17} /> Add anything else
+        </button>
+      )}
 
       {!plan?.restDay && (
         <button
@@ -180,14 +278,16 @@ function ExerciseCard({ ex, ensureWorkout, onError }: {
           setBusy(true);
           try {
             const id = await ensureWorkout();
-            const res = await post<{ next: { reason: string } }>(`/api/workouts/${id}/sets`, {
-              exercise_id: ex.id,
-              weight_kg: Number(weight) || 0,
-              reps: Number(reps) || 0,
-              rir: rir === "" ? null : Number(rir),
-            });
+            if (id !== "local") {
+              const res = await post<{ next: { reason: string } }>(`/api/workouts/${id}/sets`, {
+                exercise_id: ex.id,
+                weight_kg: Number(weight) || 0,
+                reps: Number(reps) || 0,
+                rir: rir === "" ? null : Number(rir),
+              });
+              setNext(res.next?.reason ?? null);
+            }
             setLogged((l) => [...l, { weightKg: Number(weight) || 0, reps: Number(reps) || 0 }]);
-            setNext(res.next?.reason ?? null);
             await tapFeedback("medium");
           } catch (e2) {
             onError(e2 instanceof Error ? e2.message : "Could not save that set.");

@@ -189,6 +189,40 @@ check("the week has the right number of training days", () => {
   }
 });
 
+console.log("\nCalendar dates");
+
+/* Mirrors lib/client.ts. A day is a label, not an instant, and every step has
+   to be timezone-independent — the bug this guards against made the "next
+   day" arrow do nothing in India and the "previous day" arrow skip two. */
+const shiftDate = (iso, days) =>
+  new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+check("stepping a day forward and back is exact, in any timezone", () => {
+  for (const tz of ["UTC", "Asia/Kolkata", "America/Los_Angeles", "Pacific/Kiritimati"]) {
+    process.env.TZ = tz;
+    assert.equal(shiftDate("2026-08-28", 1), "2026-08-29", tz);
+    assert.equal(shiftDate("2026-08-28", -1), "2026-08-27", tz);
+    assert.equal(shiftDate("2026-08-28", 0), "2026-08-28", tz);
+  }
+  process.env.TZ = "UTC";
+});
+
+check("stepping across a month and a year boundary", () => {
+  assert.equal(shiftDate("2026-08-31", 1), "2026-09-01");
+  assert.equal(shiftDate("2026-09-01", -1), "2026-08-31");
+  assert.equal(shiftDate("2026-12-31", 1), "2027-01-01");
+  assert.equal(shiftDate("2027-01-01", -1), "2026-12-31");
+  // A leap year, which 2028 is.
+  assert.equal(shiftDate("2028-02-28", 1), "2028-02-29");
+  assert.equal(shiftDate("2028-03-01", -1), "2028-02-29");
+});
+
+check("a week of steps lands a week away", () => {
+  let d = "2026-08-28";
+  for (let i = 0; i < 7; i++) d = shiftDate(d, -1);
+  assert.equal(d, "2026-08-21");
+});
+
 console.log("\nPhysique");
 
 const body = (sex, heightCm, weightKg, bf) => ({

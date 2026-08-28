@@ -68,10 +68,92 @@ export const EXERCISES: Exercise[] = [
   { id: "plank", name: "Plank", primary: "core", secondary: [], equipment: "bodyweight", compound: false, repRange: [30, 90], cue: "Seconds, not reps. Squeeze the glutes — a sagging hip makes it a rest, not a set." },
   { id: "hanging-leg", name: "Hanging leg raise", primary: "core", secondary: [], equipment: "bodyweight", compound: false, repRange: [8, 15], cue: "Curl the pelvis up. Swinging the legs works the hip flexors instead." },
   { id: "cable-crunch", name: "Cable crunch", primary: "core", secondary: [], equipment: "cable", compound: false, repRange: [12, 20], cue: "Round the spine down towards the knees. Hips do not move." },
+
+  /* Everything below is what people actually reach for on a real gym floor.
+     The set above is enough to *build* a programme; this is enough to *log*
+     one, which is a different and larger requirement. */
+  { id: "incline-bench", name: "Incline barbell press", primary: "chest", secondary: ["shoulders", "triceps"], equipment: "barbell", compound: true, repRange: [6, 10], cue: "Bench at 30°. Bar to just below the collarbone." },
+  { id: "decline-press", name: "Decline press", primary: "chest", secondary: ["triceps"], equipment: "barbell", compound: true, repRange: [8, 12], cue: "Shorter range, heavier load. Easy on the shoulders." },
+  { id: "chest-press-machine", name: "Chest press machine", primary: "chest", secondary: ["triceps"], equipment: "machine", compound: true, repRange: [10, 15], cue: "Handles level with the mid-chest, not the collarbone." },
+  { id: "pec-deck", name: "Pec deck", primary: "chest", secondary: [], equipment: "machine", compound: false, repRange: [12, 15], cue: "Squeeze for a beat where the hands meet." },
+  { id: "incline-fly", name: "Incline dumbbell fly", primary: "chest", secondary: [], equipment: "dumbbell", compound: false, repRange: [12, 15], cue: "Soft elbows, wide arc, stop at chest level." },
+
+  { id: "t-bar-row", name: "T-bar row", primary: "back", secondary: ["biceps"], equipment: "barbell", compound: true, repRange: [8, 12], cue: "Chest against the pad if there is one. No jerking." },
+  { id: "db-row", name: "Single-arm dumbbell row", primary: "back", secondary: ["biceps"], equipment: "dumbbell", compound: true, repRange: [8, 12], cue: "Pull to the hip, not the armpit. Let the shoulder stretch at the bottom." },
+  { id: "chinup", name: "Chin-up", primary: "back", secondary: ["biceps"], equipment: "bodyweight", compound: true, repRange: [5, 12], cue: "Underhand grip. More biceps than a pull-up, and usually a few more reps." },
+  { id: "pullover", name: "Dumbbell pullover", primary: "back", secondary: ["chest"], equipment: "dumbbell", compound: false, repRange: [10, 15], cue: "Hips low, stretch over the head, feel it through the ribs." },
+  { id: "shrug", name: "Shrug", primary: "back", secondary: [], equipment: "dumbbell", compound: false, repRange: [12, 20], cue: "Straight up, pause at the top. Rolling the shoulders does nothing." },
+  { id: "rack-pull", name: "Rack pull", primary: "back", secondary: ["glutes"], equipment: "barbell", compound: true, repRange: [4, 8], cue: "From the knee. Heavier than a deadlift, less range." },
+  { id: "hyperextension", name: "Back extension", primary: "back", secondary: ["hamstrings", "glutes"], equipment: "bodyweight", compound: false, repRange: [12, 20], cue: "Stop level with the body. Arching past it does nothing good." },
+
+  { id: "arnold-press", name: "Arnold press", primary: "shoulders", secondary: ["triceps"], equipment: "dumbbell", compound: true, repRange: [8, 12], cue: "Rotate the palms out as you press. Slow." },
+  { id: "upright-row", name: "Upright row", primary: "shoulders", secondary: ["back"], equipment: "barbell", compound: false, repRange: [10, 15], cue: "Wide grip, elbows to shoulder height only. Narrow and high hurts shoulders." },
+  { id: "rear-delt-fly", name: "Rear delt fly", primary: "shoulders", secondary: ["back"], equipment: "dumbbell", compound: false, repRange: [15, 20], cue: "Bent over, thumbs down, lead with the elbows." },
+  { id: "cable-lateral", name: "Cable lateral raise", primary: "shoulders", secondary: [], equipment: "cable", compound: false, repRange: [12, 20], cue: "Constant tension the whole way. Better than dumbbells for this one." },
+
+  { id: "hack-squat", name: "Hack squat", primary: "quads", secondary: ["glutes"], equipment: "machine", compound: true, repRange: [8, 12], cue: "Feet lower on the plate for quads, higher for glutes." },
+  { id: "bulgarian", name: "Bulgarian split squat", primary: "quads", secondary: ["glutes"], equipment: "dumbbell", compound: true, repRange: [8, 12], cue: "Back foot elevated. Brutal, and the best single-leg movement there is." },
+  { id: "leg-extension", name: "Leg extension", primary: "quads", secondary: [], equipment: "machine", compound: false, repRange: [12, 20], cue: "Pause at the top. Do not swing the weight up." },
+  { id: "goblet-squat", name: "Goblet squat", primary: "quads", secondary: ["glutes", "core"], equipment: "dumbbell", compound: true, repRange: [10, 15], cue: "Dumbbell at the chest. The easiest squat to learn depth with." },
+  { id: "seated-leg-curl", name: "Seated leg curl", primary: "hamstrings", secondary: [], equipment: "machine", compound: false, repRange: [10, 15], cue: "More stretch than lying. Both are worth doing." },
+  { id: "good-morning", name: "Good morning", primary: "hamstrings", secondary: ["back", "glutes"], equipment: "barbell", compound: true, repRange: [8, 12], cue: "Light. Hinge, do not squat. Stop where the back would round." },
+  { id: "glute-bridge", name: "Glute bridge", primary: "glutes", secondary: ["hamstrings"], equipment: "bodyweight", compound: false, repRange: [15, 20], cue: "Squeeze hard at the top for a full second." },
+  { id: "seated-calf", name: "Seated calf raise", primary: "calves", secondary: [], equipment: "machine", compound: false, repRange: [15, 20], cue: "Hits the soleus, underneath the main calf. Higher reps." },
+
+  { id: "preacher-curl", name: "Preacher curl", primary: "biceps", secondary: [], equipment: "barbell", compound: false, repRange: [10, 15], cue: "No cheating possible, which is the point. Do not lock out hard at the bottom." },
+  { id: "incline-curl", name: "Incline dumbbell curl", primary: "biceps", secondary: [], equipment: "dumbbell", compound: false, repRange: [10, 15], cue: "Arms behind the body. The best stretch a biceps gets." },
+  { id: "cable-curl", name: "Cable curl", primary: "biceps", secondary: [], equipment: "cable", compound: false, repRange: [12, 15], cue: "Tension all the way down, unlike a dumbbell." },
+  { id: "overhead-ext", name: "Overhead triceps extension", primary: "triceps", secondary: [], equipment: "dumbbell", compound: false, repRange: [10, 15], cue: "Arms overhead stretches the long head. Where triceps size comes from." },
+  { id: "close-grip-bench", name: "Close-grip bench press", primary: "triceps", secondary: ["chest", "shoulders"], equipment: "barbell", compound: true, repRange: [6, 10], cue: "Shoulder width, not narrower. Elbows tucked." },
+  { id: "kickback", name: "Triceps kickback", primary: "triceps", secondary: [], equipment: "dumbbell", compound: false, repRange: [12, 20], cue: "Upper arm parallel to the floor and still. Light weight." },
+
+  { id: "russian-twist", name: "Russian twist", primary: "core", secondary: [], equipment: "bodyweight", compound: false, repRange: [15, 30], cue: "Rotate from the ribs, not the arms." },
+  { id: "ab-wheel", name: "Ab wheel rollout", primary: "core", secondary: ["shoulders"], equipment: "bodyweight", compound: false, repRange: [8, 15], cue: "Ribs down, no arch. Go only as far as you can come back from." },
+  { id: "side-plank", name: "Side plank", primary: "core", secondary: [], equipment: "bodyweight", compound: false, repRange: [20, 60], cue: "Seconds per side. Hips stacked and lifted." },
+  { id: "leg-raise", name: "Lying leg raise", primary: "core", secondary: [], equipment: "bodyweight", compound: false, repRange: [12, 20], cue: "Press the lower back into the floor the whole time." },
+  { id: "farmers-walk", name: "Farmer's walk", primary: "core", secondary: ["back", "calves"], equipment: "dumbbell", compound: true, repRange: [30, 60], cue: "Seconds. Heavy, tall, and do not let the shoulders round." },
 ];
 
 export const byId = (id: string): Exercise | null =>
   EXERCISES.find((e) => e.id === id) ?? null;
+
+export const MUSCLE_LABEL: Record<Muscle, string> = {
+  chest: "Chest", back: "Back", shoulders: "Shoulders", quads: "Quads",
+  hamstrings: "Hamstrings", glutes: "Glutes", biceps: "Biceps",
+  triceps: "Triceps", calves: "Calves", core: "Core",
+};
+
+export const EQUIPMENT_LABEL: Record<Equipment, string> = {
+  barbell: "Barbell", dumbbell: "Dumbbell", machine: "Machine",
+  cable: "Cable", bodyweight: "Bodyweight",
+};
+
+/** Every exercise for a muscle, compounds first — they carry the session. */
+export function byMuscle(muscle: Muscle): Exercise[] {
+  return EXERCISES
+    .filter((e) => e.primary === muscle)
+    .sort((a, b) => Number(b.compound) - Number(a.compound));
+}
+
+/** Free-text search across names, muscles and equipment. */
+export function findExercises(query: string, limit = 24): Exercise[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return EXERCISES
+    .map((e) => {
+      const name = e.name.toLowerCase();
+      let score = 0;
+      if (name === q) score = 100;
+      else if (name.startsWith(q)) score = 70;
+      else if (name.includes(q)) score = 45;
+      else if (e.primary.includes(q) || e.equipment.includes(q)) score = 20;
+      return { e, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.e);
+}
 
 /* ------------------------------------------------------------------ */
 /* Splits                                                              */

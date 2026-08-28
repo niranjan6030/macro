@@ -22,9 +22,12 @@
   --color-haze: #1a1a1a;         /* the glow behind the figure */
   --color-slab: #0b0b0b;         /* cards */
   --color-slab-2: #141414;       /* raised */
-  --color-line: #262626;
-  --color-mute: #7a7a7a;
-  --color-chalk: #f2f2f2;
+  --color-line: #303030;
+  /* Was #7a7a7a. Secondary text sits over a lit 3D figure as often as over
+     black, and at that weight it vanished into the body behind it. */
+  --color-mute: #a1a1a1;
+  --color-dim: #7c7c7c;      /* only for text that is genuinely incidental */
+  --color-chalk: #f4f4f4;
 
   /* "Accent" is simply white. Anything that means progress or action is the
      brightest thing on screen; everything else is dimmer. */
@@ -40,9 +43,8 @@
   --color-warn: #b8b8b8;
   --color-bad: #ffffff;
 
-  --font-sans: var(--font-display-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  /* High-contrast serif italic, for the one line per screen that sets the tone. */
-  --font-serif: var(--font-display-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-display-sans), "Open Sans", ui-sans-serif, system-ui,
+               -apple-system, "Segoe UI", sans-serif;
   /* Tabular figures: a weight that shifts sideways as it counts reads as broken. */
   --font-num: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
@@ -73,11 +75,10 @@ body {
 .safe-top { padding-top: env(safe-area-inset-top); }
 
 @layer components {
+  /* The display voice is the same face at a heavier weight, tightened. */
   .display {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-weight: 800;
+    letter-spacing: -0.032em;
     line-height: 1.02;
   }
 
