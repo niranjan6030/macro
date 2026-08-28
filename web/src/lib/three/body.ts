@@ -39,6 +39,9 @@ export interface Ring {
 
 /* Dense enough that the muscle relief has something to displace. At 48
    segments the pectorals came out as two facets. */
+/** How far the finished mesh is dropped so it turns about its middle. */
+const CENTRE_OFFSET = 0.5;
+
 const RADIAL = 112;
 /** Cross-sections after resampling. The hand-written rings are far fewer. */
 const ROWS = 190;
@@ -275,8 +278,31 @@ const LEG: Section[] = [
 ];
 
 /** Turn a table of sections into rings, at this person's measurements. */
-function rings(sections: Section[], p: Physique, side: 1 | -1 = 1): Ring[] {
+/**
+ * Landmark heights differ between the sexes, and not by a little.
+ *
+ * A woman's torso is shorter for her height and her waist sits higher — the
+ * gap between the bottom rib and the iliac crest is larger, which is most of
+ * what makes the waist read as a waist. Scaling a male figure down produces
+ * something that is unmistakably a small man, which is what every parametric
+ * body gets wrong when it treats sex as a set of width multipliers.
+ *
+ * These shift the y of each section, leaving the widths to `physiqueOf`.
+ */
+function shiftForSex(sections: Section[], p: Physique): Section[] {
+  if (p.sex === "male") return sections;
   return sections.map((s) => {
+    let y = s.y;
+    // Waist up by ~1.5% of stature, shoulders and chest down slightly.
+    if (y > 0.50 && y < 0.70) y += 0.016;
+    else if (y >= 0.70 && y < 0.80) y -= 0.004;
+    else if (y >= 0.80) y -= 0.010;
+    return { ...s, y };
+  });
+}
+
+function rings(sections: Section[], p: Physique, side: 1 | -1 = 1): Ring[] {
+  return shiftForSex(sections, p).map((s) => {
     const rx = p.w[s.w[0]] * s.w[1];
     let offset = s.x ? p.w[s.x[0]] * s.x[1] : 0;
     if (s.clear) {
@@ -323,12 +349,27 @@ export function buildBody(p: Physique): THREE.BufferGeometry {
   hair.translate(0, 0.958, -0.003);
   parts.push(hair);
 
+  /* Breast tissue is mostly fat, so its size tracks adiposity and its
+     position tracks the chest — it is not a fixed shape stamped on every
+     female figure. Added as geometry rather than as surface relief because at
+     any real size it changes the silhouette, and relief only changes shading. */
+  if (p.sex === "female") {
+    const chest = p.w.chest;
+    const r = chest * (0.34 + 0.20 * p.adiposity);
+    for (const side of [1, -1] as const) {
+      const breast = new THREE.SphereGeometry(r, 40, 28);
+      breast.scale(1.0, 0.94, 1.15);
+      breast.translate(side * chest * 0.44, 0.700, chest * p.depth * 0.62);
+      parts.push(breast);
+    }
+  }
+
   const merged = mergeGeometries(parts);
   merged.computeVertexNormals();
   applyRelief(merged, p);
 
   // Centre on the origin so it turns about its own axis, not its feet.
-  merged.translate(0, -0.5, 0);
+  merged.translate(0, -CENTRE_OFFSET, 0);
   return merged;
 }
 
@@ -364,6 +405,67 @@ function applyRelief(g: THREE.BufferGeometry, p: Physique): void {
   g.setAttribute("color", new THREE.BufferAttribute(shade, 3));
   // Recomputed from the displaced surface, so the relief catches the light.
   g.computeVertexNormals();
+}
+
+/**
+ * Is this point buried inside the torso?
+ *
+ * The arms and legs are separate lofts pushed into the torso so their end caps
+ * are hidden — which works for a solid surface, where the buried geometry is
+ * simply never seen. It does not work for additively blended dust: those
+ * interior surfaces are inside the volume, nothing occludes them, and their
+ * motes pile onto the ones in front. The result was a bright cap glowing on
+ * each deltoid and hip, exactly where the parts overlap.
+ *
+ * So the sampler is given this, and skips anything inside the torso. It
+ * rebuilds the torso's cross-section at the point's height and tests the
+ * superellipse — the same shape the loft drew, so the test agrees with the
+ * geometry by construction rather than by a tuned fudge factor.
+ *
+ * The 2% inset keeps the torso's *own* surface points, which sit exactly on
+ * the boundary, from culling themselves.
+ */
+export function torsoContainment(p: Physique): (x: number, y: number, z: number) => boolean {
+  const sections = resample(rings(TORSO, p), ROWS);
+  const lo = sections[0].c[1];
+  const hi = sections[sections.length - 1].c[1];
+
+  return (x, rawY, z) => {
+    /* The section tables describe a figure standing on y = 0, but `buildBody`
+       centres the finished mesh on the origin — so points arrive here half a
+       body-height low. Testing them without this offset culls the wrong half
+       of the figure, silently. */
+    const y = rawY + CENTRE_OFFSET;
+    if (y < lo || y > hi) return false;
+
+    /* Find the two sections bracketing this height.
+     *
+     * Not by dividing the range — resampling interpolates by *index*, and the
+     * authored rings are not evenly spaced in y, so the stack is denser
+     * wherever the body changes shape fastest. Assuming even spacing looked up
+     * the wrong cross-section by as much as several centimetres, which culled
+     * whole regions of dust that were never buried at all. */
+    let i = 0;
+    let step = sections.length >> 1;
+    while (step > 0) {
+      while (i + step < sections.length - 1 && sections[i + step].c[1] <= y) i += step;
+      step >>= 1;
+    }
+    const a = sections[i];
+    const b = sections[Math.min(i + 1, sections.length - 1)];
+    const span = b.c[1] - a.c[1];
+    const f = span > 1e-6 ? (y - a.c[1]) / span : 0;
+
+    const rx = (a.rx + (b.rx - a.rx) * f) * 0.98;
+    const rz = (a.rz + (b.rz - a.rz) * f) * 0.98;
+    const n = (a.n ?? 2.3) + ((b.n ?? 2.3) - (a.n ?? 2.3)) * f;
+    const front = (a.front ?? 1) + ((b.front ?? 1) - (a.front ?? 1)) * f;
+    const back = (a.back ?? 1) + ((b.back ?? 1) - (a.back ?? 1)) * f;
+
+    const depth = rz * (z > 0 ? front : back);
+    // Superellipse test: |x/rx|^n + |z/rz|^n < 1 is inside.
+    return Math.pow(Math.abs(x / rx), n) + Math.pow(Math.abs(z / depth), n) < 1;
+  };
 }
 
 /** three's BufferGeometryUtils lives in examples; this is the only bit needed. */

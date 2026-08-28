@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { buildBody } from "@/lib/three/body";
+import { buildBody, torsoContainment } from "@/lib/three/body";
+import { dustMaterial, dustSprite, surfaceDust } from "@/lib/three/dust";
 import { physiqueOf, type Composition } from "@/lib/fitness/physique";
 import { useBody } from "@/lib/bodyStore";
 
@@ -87,24 +88,63 @@ export function Scene({
 
     /* --- the figure ------------------------------------------------- */
     const geometry = buildBody(physique);
-    /* Grey clay, the way an anatomy sculpt is presented. A pure white body
-       blows out its own highlights and the relief disappears into them; a mid
-       grey keeps the whole tonal range available for form. */
+
+    /* Two layers.
+     *
+     * The mesh underneath is dim and semi-transparent: it carries the light
+     * and therefore the anatomy, but on its own it reads as a solid object
+     * with a hard silhouette, which is the opposite of the look being aimed
+     * at. Kept faint, it becomes the form the dust is wrapped around.
+     *
+     * `depthWrite: false` so it never occludes the dust in front of it, and
+     * `side: DoubleSide` so the inside of the far surface still contributes —
+     * both of which are what make it read as a volume rather than a shell. */
     const material = new THREE.MeshStandardMaterial({
-      color: 0xc4c4c4,
-      roughness: 0.78,
+      color: 0xb6bccd,
+      roughness: 0.85,
       metalness: 0.0,
-      /* The baked cavity map multiplies in here. Without it the groove
-         between two pectorals stays as bright as the pectorals — both its
-         walls face the light — and the separation is invisible however the
-         lamps are arranged. */
+      transparent: true,
+      opacity: 0.40,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      // The baked cavity map multiplies in here, so the creases stay dark.
       vertexColors: true,
     });
     const body = new THREE.Mesh(geometry, material);
     body.scale.setScalar(2.0);
 
+    /* The dust. Scattered over the same surface and additively blended, so it
+       accumulates where the body is thick and feathers away at the edges. */
+    const sprite = dustSprite();
+    const dpr = Math.min(window.devicePixelRatio, CAP_DPR);
+
+    const buried = torsoContainment(physique);
+
+    const motes = new THREE.Points(
+      surfaceDust(geometry, { count: 44_000, buried }),
+      dustMaterial(sprite),
+    );
+    motes.scale.setScalar(2.0);
+    (motes.material as THREE.ShaderMaterial).uniforms.uPixelRatio.value = dpr;
+
+    /* A second, looser layer standing further off the skin. This is the halo:
+       sparse, large and faint, it is what makes the silhouette feather away
+       instead of ending, and it catches the light around the shoulders the way
+       the reference does. */
+    const haze = new THREE.Points(
+      surfaceDust(geometry, { count: 9_000, lift: 0.02, jitter: 0.055, buried }),
+      dustMaterial(sprite),
+    );
+    haze.scale.setScalar(2.0);
+    const hazeMat = haze.material as THREE.ShaderMaterial;
+    hazeMat.uniforms.uPixelRatio.value = dpr;
+    hazeMat.uniforms.uSize.value = 11.0;
+    hazeMat.uniforms.uOpacity.value = 0.16;
+
     const group = new THREE.Group();
     group.add(body);
+    group.add(motes);
+    group.add(haze);
     // A few degrees off square, so the pose reads as a body standing rather
     // than a diagram pinned to the screen.
     group.rotation.x = 0.04;
@@ -114,7 +154,7 @@ export function Scene({
     /* Low ambient on purpose. Relief is read from the gradient between lit
        and unlit, and filling the shadows flattens every muscle back into the
        surface it was displaced out of. */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.16));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.22));
 
     // Raking across the body rather than square on, so the form casts.
     const key = new THREE.DirectionalLight(0xffffff, 2.3);
@@ -123,7 +163,7 @@ export function Scene({
 
     // The rim is what makes it sculptural. Behind and above, so the edge of
     // the shoulder and the outside of the arm catch a hard white line.
-    const rim = new THREE.DirectionalLight(0xffffff, 2.6);
+    const rim = new THREE.DirectionalLight(0xffffff, 3.4);
     rim.position.set(-1.6, 0.9, -1.5);
     scene.add(rim);
 
@@ -232,6 +272,11 @@ export function Scene({
       ro.disconnect();
       geometry.dispose();
       material.dispose();
+      motes.geometry.dispose();
+      (motes.material as THREE.ShaderMaterial).dispose();
+      haze.geometry.dispose();
+      hazeMat.dispose();
+      sprite.dispose();
       dustGeo.dispose();
       dustMat.dispose();
       renderer.dispose();

@@ -84,11 +84,20 @@ from your logged data first, and the model's only job is to write it up.
 
 **The figure**
 - A 3D body stands behind every screen and turns as you scroll
+- Rendered as **dust, not as a surface** — forty thousand points scattered over
+  the mesh by triangle area and additively blended, so it is translucent, its
+  edges feather away instead of stopping, and it brightens where the body is
+  thick. A lit polygon shell cannot do any of that
 - Classified into one of six builds — underweight, skinny fat, overweight,
   carrying a lot of fat, fit, fit and muscular — from BMI, body fat and
   fat-free mass index read together. BMI alone cannot tell them apart: it
   files a lean 88 kg lifter as "overweight" and someone at 21 BMI with 26%
   body fat as "normal". Both of those are shown correctly here
+- Male and female are different bodies, not one body with different numbers.
+  The waist sits higher, the torso is shorter, the pelvis is wider — and the
+  fat goes somewhere else entirely, abdominally for men and gluteofemorally
+  for women, which is the single biggest reason two people at the same body
+  fat look nothing alike
 - **It is your body.** The cross-sections are driven by your own lean mass and
   body fat, so it changes as you log — slowly, by the amount the numbers moved
 - Two drivers, moving independently: fat-free mass index, which fat cannot

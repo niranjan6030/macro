@@ -3,7 +3,7 @@ import { bmr, tdee, dailyTargets } from "../.check/fitness/energy.js";
 import { project, intakeForDeadline } from "../.check/fitness/projection.js";
 import { nextPrescription, e1rm, weekPlan, splitFor } from "../.check/fitness/training.js";
 import { forGrams, plausible } from "../.check/nutrition/types.js";
-import { physiqueOf, blend } from "../.check/fitness/physique.js";
+import { physiqueOf, blend, classify, BUILDS } from "../.check/fitness/physique.js";
 
 let passed = 0;
 const check = (name, fn) => {
@@ -298,6 +298,59 @@ check("every width stays positive and sane across the whole range", () => {
       }
     }
   }
+});
+
+check("the six builds are assigned from the right evidence", () => {
+  const bmi = (kg, h) => kg / ((h / 100) ** 2);
+  const of = (kg, bf, h = 178, sex = "male") =>
+    classify(bmi(kg, h), bf, (kg * (1 - bf / 100)) / ((h / 100) ** 2), sex);
+
+  assert.equal(of(55, 11), "underweight", "BMI 17.4");
+  assert.equal(of(68, 26), "skinny_fat", "normal BMI, high fat, low muscle");
+  assert.equal(of(88, 28), "overweight", "BMI 27.8 carried as fat");
+  assert.equal(of(108, 37), "obese", "BMI 34 with 37% fat");
+  assert.equal(of(75, 14), "fit", "normal BMI, good muscle, low fat");
+  assert.equal(of(90, 10), "fit_muscular", "BMI 28 that is muscle");
+});
+
+check("the two cases BMI alone gets wrong", () => {
+  const bmi = (kg, h) => kg / ((h / 100) ** 2);
+  const of = (kg, bf, h = 178, sex = "male") =>
+    classify(bmi(kg, h), bf, (kg * (1 - bf / 100)) / ((h / 100) ** 2), sex);
+
+  // BMI 27.8 would be called overweight; 12% body fat says otherwise.
+  assert.equal(of(88, 12), "fit_muscular");
+  // BMI 21.5 would be called normal; 26% fat on almost no muscle says otherwise.
+  assert.equal(of(68, 26), "skinny_fat");
+});
+
+check("women are judged on their own thresholds", () => {
+  const bmi = (kg, h) => kg / ((h / 100) ** 2);
+  const of = (kg, bf, h = 165) =>
+    classify(bmi(kg, h), bf, (kg * (1 - bf / 100)) / ((h / 100) ** 2), "female");
+
+  // 24% would be high for a man and is lean for a woman.
+  assert.equal(of(58, 22), "fit");
+  assert.equal(of(60, 34), "skinny_fat");
+  assert.equal(of(92, 44), "obese");
+});
+
+check("every build has a label and a way out of it", () => {
+  for (const [key, info] of Object.entries(BUILDS)) {
+    assert.equal(info.key, key);
+    assert.ok(info.label.length > 2, key);
+    assert.ok(info.meaning.length > 30, key);
+    assert.ok(info.next.length > 20, `${key} should say what changes it`);
+  }
+});
+
+check("fat goes where each sex actually stores it", () => {
+  const man = physiqueOf(body("male", 178, 92, 30));
+  const woman = physiqueOf(body("female", 165, 78, 38));
+  assert.ok(man.centralBias > woman.centralBias,
+    `male ${man.centralBias.toFixed(2)} should exceed female ${woman.centralBias.toFixed(2)}`);
+  // And the shape follows: hips relative to waist.
+  assert.ok(woman.w.hip / woman.w.waist > man.w.hip / man.w.waist);
 });
 
 check("blend interpolates and clamps at both ends", () => {
