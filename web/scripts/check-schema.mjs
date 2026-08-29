@@ -41,7 +41,8 @@ await check("it is idempotent — running it twice is safe", async () => {
 await check("every table the app writes to exists", async () => {
   const want = [
     "profiles", "diary_entries", "days", "workouts", "workout_sets",
-    "progress_photos", "measurements", "custom_foods", "coach_notes",
+    "progress_photos", "measurements", "custom_foods", "custom_exercises",
+    "photo_vault", "coach_notes",
   ];
   const { rows } = await db.query(
     `select table_name from information_schema.tables where table_schema = 'public'`,
@@ -145,6 +146,52 @@ await check("one measurement per person per day", async () => {
   );
   const { rows } = await db.query(`select count(*)::int as n from measurements where uid = $1`, [UID]);
   assert.equal(rows[0].n, 1, "the unique constraint should have collapsed these into one");
+});
+
+await check("a custom exercise round-trips and cannot be duplicated", async () => {
+  await db.query(
+    `insert into custom_exercises (uid, name, primary_muscle, equipment, rep_low, rep_high)
+     values ($1, 'Band pull-apart', 'shoulders', 'bodyweight', 15, 25)`, [UID],
+  );
+  const { rows } = await db.query(
+    `select name, primary_muscle from custom_exercises where uid = $1`, [UID],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].primary_muscle, "shoulders");
+  await assert.rejects(() => db.query(
+    `insert into custom_exercises (uid, name, primary_muscle) values ($1, 'Band pull-apart', 'back')`,
+    [UID],
+  ), "the same name twice for one person should be refused");
+});
+
+await check("a photo row outlives the image it points at", async () => {
+  await db.query(
+    `insert into progress_photos (uid, on_date, pose, path, iv, expires_at, weight_kg)
+     values ($1, '2026-01-01', 'front', 'u/x.bin', 'nonce', '2026-07-01', 78.4)`, [UID],
+  );
+  // What the purge sweep does: drop the bytes, keep the record.
+  await db.query(
+    `update progress_photos set path = null, iv = null, purged_at = now() where uid = $1`, [UID],
+  );
+  const { rows } = await db.query(
+    `select on_date, weight_kg, path from progress_photos where uid = $1`, [UID],
+  );
+  assert.equal(rows.length, 1, "the row must survive the purge");
+  assert.equal(rows[0].path, null);
+  assert.equal(Number(rows[0].weight_kg), 78.4, "the weight is the point of keeping it");
+});
+
+await check("retention has to be a sane number of days", async () => {
+  await db.query(
+    `insert into photo_vault (uid, salt, verifier) values ($1, 'c2FsdA==', 'aXY=.Y2lwaGVy')`, [UID],
+  );
+  const { rows } = await db.query(`select retention_days from photo_vault where uid = $1`, [UID]);
+  assert.equal(rows[0].retention_days, 180, "six months by default");
+  await assert.rejects(
+    () => db.query(`update photo_vault set retention_days = 2 where uid = $1`, [UID]),
+    /retention_days/,
+    "two days is not a retention policy",
+  );
 });
 
 console.log("\nConstraints reject bad data");

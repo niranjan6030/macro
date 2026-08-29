@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Camera, Search, Loader2, Check, ArrowLeft, Info, ScanLine, Plus, Sparkles,
+  Camera, Search, Loader2, Check, ArrowLeft, Info, ScanLine, Sparkles,
 } from "lucide-react";
 import { get, post, today } from "@/lib/client";
 import { isNative, nativePhoto, tapFeedback } from "@/lib/native";
@@ -15,7 +15,7 @@ export default function FoodPage() {
   return <Suspense fallback={null}><FoodLogger /></Suspense>;
 }
 
-type Tab = "photo" | "search" | "manual";
+type Tab = "photo" | "search";
 
 /**
  * Logging food.
@@ -50,7 +50,7 @@ function FoodLogger() {
       </header>
 
       <div className="flex gap-1 rounded-xl bg-[var(--color-slab-2)] p-1">
-        {([["photo", "Photo", Camera], ["search", "Search", Search], ["manual", "By hand", Plus]] as const)
+        {([["photo", "Photo", Camera], ["search", "Search", Search]] as const)
           .map(([k, label, Icon]) => (
             <button key={k} onClick={() => { setTab(k); setError(""); }}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold"
@@ -67,15 +67,24 @@ function FoodLogger() {
 
       {tab === "photo" && <PhotoTab date={date} onError={setError} onSaved={() => setSaved((n) => n + 1)} />}
       {tab === "search" && <SearchTab date={date} onError={setError} onSaved={() => setSaved((n) => n + 1)} />}
-      {tab === "manual" && <ManualTab date={date} onError={setError} onSaved={() => setSaved((n) => n + 1)} />}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Photo                                                               */
+/* Photo — shoot it, or say what it was                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * One tab, two ways in, the same estimate at the end.
+ *
+ * These used to be separate tabs, and separating them was wrong: the reason
+ * you photograph a meal and the reason you describe one are the same reason —
+ * you do not have a packet to copy the numbers off. A photo answers it when
+ * the food is in front of you; a description answers it when it is not, or
+ * when the camera got it wrong. Either way the calories come from the
+ * database, not from the model.
+ */
 function PhotoTab({ date, onError, onSaved }: {
   date: string; onError: (m: string) => void; onSaved: () => void;
 }) {
@@ -124,6 +133,7 @@ function PhotoTab({ date, onError, onSaved }: {
           <span className="max-w-xs text-xs leading-relaxed text-[var(--color-mute)]">
             Macro identifies each food and estimates the weight. The calories come from a
             nutrition database, not from the model — so check the grams and they will be right.
+            No camera to hand? Describe it below instead.
           </span>
         </button>
       )}
@@ -154,6 +164,14 @@ function PhotoTab({ date, onError, onSaved }: {
           Take another
         </button>
       )}
+
+      <div className="flex items-center gap-3 pt-2">
+        <span className="h-px flex-1 bg-[var(--color-line)]" />
+        <span className="label mb-0">or say what it was</span>
+        <span className="h-px flex-1 bg-[var(--color-line)]" />
+      </div>
+
+      <Describe date={date} onError={onError} onSaved={onSaved} />
     </div>
   );
 }
@@ -455,10 +473,10 @@ function PortionPicker({ food, date, onError, onSaved, onBack }: {
 }
 
 /* ------------------------------------------------------------------ */
-/* Manual                                                              */
+/* Describing a meal instead of photographing it                       */
 /* ------------------------------------------------------------------ */
 
-function ManualTab({ date, onError, onSaved }: {
+function Describe({ date, onError, onSaved }: {
   date: string; onError: (m: string) => void; onSaved: () => void;
 }) {
   const [name, setName] = useState("");
