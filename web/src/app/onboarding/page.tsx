@@ -106,11 +106,11 @@ export default function Onboarding() {
 
       {step === 0 && (
         <Step title="Let's start with you" hint="Age and sex change the equations more than anything else here.">
-          <Field label="Name (optional)">
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
+          <Field id="name" label="Name (optional)">
+            <input id="name" className="field" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
           </Field>
-          <Field label="Date of birth">
-            <input type="date" className="field num" value={birth} onChange={(e) => setBirth(e.target.value)} />
+          <Field id="birth" label="Date of birth">
+            <input id="birth" type="date" className="field num" value={birth} onChange={(e) => setBirth(e.target.value)} />
           </Field>
           <Field label="Sex">
             <Choice value={sex} onChange={setSex} options={[["male", "Male"], ["female", "Female"]]} />
@@ -123,12 +123,12 @@ export default function Onboarding() {
 
       {step === 1 && (
         <Step title="Your measurements" hint="Weigh yourself first thing, after the loo, before eating — it is the most repeatable moment of the day.">
-          <Field label="Height (cm)">
-            <input inputMode="decimal" className="field num" value={height}
+          <Field id="height" label="Height (cm)">
+            <input id="height" inputMode="decimal" className="field num" value={height}
                    onChange={(e) => setHeight(e.target.value)} placeholder="175" />
           </Field>
-          <Field label="Weight today (kg)">
-            <input inputMode="decimal" className="field num" value={weight}
+          <Field id="weight" label="Weight today (kg)">
+            <input id="weight" inputMode="decimal" className="field num" value={weight}
                    onChange={(e) => setWeight(e.target.value)} placeholder="78.5" />
           </Field>
         </Step>
@@ -150,8 +150,8 @@ export default function Onboarding() {
               ))}
             </div>
           </Field>
-          <Field label={`Training sessions per week: ${trainingDays}`}>
-            <input type="range" min={0} max={7} value={trainingDays} className="w-full accent-[var(--color-volt)]"
+          <Field id="training-days" label={`Training sessions per week: ${trainingDays}`}>
+            <input id="training-days" type="range" min={0} max={7} value={trainingDays} className="w-full accent-[var(--color-volt)]"
                    onChange={(e) => setTrainingDays(Number(e.target.value))} />
             <p className="mt-2 text-xs text-[var(--color-mute)]">
               {trainingDays <= 3 ? "Macro will build full-body sessions — the best use of three days or fewer."
@@ -169,8 +169,8 @@ export default function Onboarding() {
                     options={[["lose", "Lose fat"], ["maintain", "Maintain"], ["gain", "Build muscle"]]} />
           </Field>
           {goal !== "maintain" && (
-            <Field label="Target weight (kg), optional">
-              <input inputMode="decimal" className="field num" value={targetWeight}
+            <Field id="target-weight" label="Target weight (kg), optional">
+              <input id="target-weight" inputMode="decimal" className="field num" value={targetWeight}
                      onChange={(e) => setTargetWeight(e.target.value)}
                      placeholder={goal === "lose" ? "72" : "82"} />
               <p className="mt-2 text-xs text-[var(--color-mute)]">
@@ -255,17 +255,44 @@ function Step({ title, hint, children }: { title: string; hint: string; children
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div><span className="label">{label}</span>{children}</div>;
+/**
+ * A labelled field.
+ *
+ * `htmlFor` is not optional dressing. These were a <span> beside an <input>
+ * with nothing tying them together — so a screen reader announced "edit text,
+ * blank" with no idea it was asking for a height, and tapping the word
+ * "Weight" did not focus the box under it, which on a phone is most of how
+ * people expect a form to behave.
+ *
+ * Where the control is not a single input — the activity list, the sex
+ * buttons — there is nothing for `htmlFor` to point at, so those pass no `id`
+ * and get a plain caption instead. A label pointing at nothing is worse than
+ * no label: it tells assistive software the field exists and then loses it.
+ */
+function Field({ id, label, children }: {
+  id?: string; label: string; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      {id
+        ? <label className="label" htmlFor={id}>{label}</label>
+        : <span className="label">{label}</span>}
+      {children}
+    </div>
+  );
 }
 
 function Choice<T extends string>({ value, onChange, options }: {
   value: T | ""; onChange: (v: T) => void; options: [T, string][];
 }) {
   return (
-    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    /* A group of buttons, not a single control — so it is announced as a
+       group with its selection state, rather than as several unrelated
+       buttons that happen to sit together. */
+    <div role="radiogroup" className="grid gap-2"
+         style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
       {options.map(([v, label]) => (
-        <button key={v} onClick={() => onChange(v)}
+        <button key={v} onClick={() => onChange(v)} role="radio" aria-checked={value === v}
                 className="rounded-xl border px-3 py-3 text-sm font-medium"
                 style={{
                   borderColor: value === v ? "var(--color-volt)" : "var(--color-line)",
