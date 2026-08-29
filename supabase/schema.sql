@@ -250,16 +250,27 @@ create table if not exists coach_notes (
 -- If you later move identity to Supabase Auth, this is where the
 -- `auth.uid()::text = uid` policies would go.
 -- ---------------------------------------------------------------------
-do $$
-declare t text;
-begin
-  foreach t in array array[
-    'profiles','diary_entries','days','workouts','workout_sets',
-    'progress_photos','measurements','custom_foods','coach_notes'
-  ] loop
-    execute format('alter table %I enable row level security', t);
-  end loop;
-end $$;
+/*
+ * Written out one table at a time, on purpose.
+ *
+ * This used to be a loop over an array of table names, executing `alter
+ * table` through `format()`. It worked, but no static analyser can see
+ * through dynamic SQL — so Supabase's own linter reported the schema as
+ * creating nine tables with row-level security switched off, which is the
+ * single most alarming thing it could have said about it and was not true.
+ *
+ * A reviewer had the same problem. Nine explicit lines are longer and answer
+ * the question at a glance.
+ */
+alter table profiles enable row level security;
+alter table diary_entries enable row level security;
+alter table days enable row level security;
+alter table workouts enable row level security;
+alter table workout_sets enable row level security;
+alter table progress_photos enable row level security;
+alter table measurements enable row level security;
+alter table custom_foods enable row level security;
+alter table coach_notes enable row level security;
 
 -- ---------------------------------------------------------------------
 -- Daily totals
