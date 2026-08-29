@@ -54,8 +54,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={sans.variable}>
       <body>
-        {/* The default figure, behind every screen. The home screen mounts its
-            own in place of this one, built from the signed-in person's body. */}
+        {/* The star, behind every screen. Nothing feeds it and nothing reads
+            from it — it turns with the scrollbar and that is all it does. */}
         <Scene className="pointer-events-none fixed inset-0 -z-20" />
         <Grain />
         <Frame />

@@ -82,52 +82,16 @@ from your logged data first, and the model's only job is to write it up.
 - Reps in reserve, estimated 1RM, weekly hard sets per muscle
 - Rest days and cheat days are first-class, recorded rather than hidden
 
-**The figure**
-- A 3D body stands behind every screen and turns as you scroll
-- Rendered as **dust, not as a surface** — forty thousand points scattered over
-  the mesh by triangle area and additively blended, so it is translucent, its
-  edges feather away instead of stopping, and it brightens where the body is
-  thick. A lit polygon shell cannot do any of that
-- Classified into one of six builds — underweight, skinny fat, overweight,
-  carrying a lot of fat, fit, fit and muscular — from BMI, body fat and
-  fat-free mass index read together. BMI alone cannot tell them apart: it
-  files a lean 88 kg lifter as "overweight" and someone at 21 BMI with 26%
-  body fat as "normal". Both of those are shown correctly here
-- Male and female are different bodies, not one body with different numbers.
-  The waist sits higher, the torso is shorter, the pelvis is wider — and the
-  fat goes somewhere else entirely, abdominally for men and gluteofemorally
-  for women, which is the single biggest reason two people at the same body
-  fat look nothing alike
-- **It is your body.** The cross-sections are driven by your own lean mass and
-  body fat, so it changes as you log — slowly, by the amount the numbers moved
-- Two drivers, moving independently: fat-free mass index, which fat cannot
-  inflate, and body fat percentage. This is why 80 kg at 26% and 80 kg at 14%
-  are not the same figure in different sizes, but different shapes
-- Muscle relief is raised out of the surface by around forty anatomical
-  fields — pectorals, lats, glutes, quadriceps, the linea alba — each gated on
-  whether there is muscle to show *and* little enough fat over it to show
-  through. A strong person carrying fat renders smooth, because that is what
-  they look like
-- Abdominal separation appears at 15% body fat and not above it, which is
-  where it genuinely appears
-- Cavity shading is baked per vertex, so the grooves read as grooves. Without
-  it directional light cannot darken the gap between two pectorals — both its
-  walls face the lamp
-- Built in code, not loaded: no model file, nothing to fetch, no licence
-- Widths calibrated from real circumferences; proportions on the eight-head
-  canon, cross-checked against a reference silhouette
-- **The mesh is measured, not eyeballed.** `npm run check:geometry` builds the
-  body and takes calipers to it — bideltoid breadth, waist, hip, knee, ankle,
-  foot length, head depth — against ANSUR II and Pheasant's *Bodyspace*. That
-  harness found a foot 7 cm too short, legs that splayed outward from hip to
-  knee, and a figure 6 cm too wide across the elbows
-
-**The day**
-- Three rings that close, the way Apple's Fitness rings do: calories, protein,
-  fibre. A ring is a target you can see the end of, and it has a finished state
-  a bar chart never quite gets
-- Going past a target wraps a second lap rather than capping, because being
-  over is information
+**The star**
+- A four-pointed star turns behind every screen, driven by the scrollbar
+- Its shape is an astroid — `x = cos³t, y = sin³t` — extended into three
+  dimensions as a superellipsoid. The cubing is what pulls the sides inward
+  into needle points; without it you get an ellipse
+- Rendered as dust, not as a surface: seventy thousand points scattered over
+  the geometry by triangle area and blended additively, so it is translucent,
+  its edges feather away instead of stopping, and it brightens where it is
+  dense. A fresnel term picks out the silhouette, which is the bright rim
+- It does nothing else. No data feeds it and nothing reads from it
 
 **The look**
 - Monochrome, on black. The only colour in the app is the photograph of your
@@ -157,7 +121,7 @@ npm run dev
 
 That is the whole of it. **With no keys at all Macro runs standalone**: it
 skips sign-in, keeps everything in your browser, and the core loop works —
-onboarding, targets, the figure, food search, logging, the rings, the
+onboarding, targets, the star, food search, logging, the rings, the
 projection. Food search still reaches the real nutrition databases, because
 those are public.
 
@@ -301,9 +265,9 @@ web/src/lib/
   fitness/energy.ts        BMR, TDEE, macro targets
   fitness/projection.ts    week-by-week bodyweight simulation
   fitness/training.ts      exercise library, splits, progression
-  fitness/physique.ts      composition -> widths, depth, definition
-  three/body.ts            the figure, lofted from cross-sections
-  three/muscles.ts         muscle and fat relief, and the cavity map
+  fitness/physique.ts      composition -> the six builds
+  three/star.ts            the astroid star
+  three/dust.ts            scattering a surface into points
   nutrition/types.ts       the canonical per-100 g shape, and plausibility
   nutrition/indian.ts      Indian staples as eaten
   nutrition/openfoodfacts.ts, usda.ts, search.ts
@@ -311,7 +275,7 @@ web/src/lib/
   ai/coach.ts              findings computed in code, written up by the model
   db.ts                    every read and write, scoped by uid
 web/src/components/
-  Scene.tsx                the figure, scroll-driven rotation, drifting dust
+  Scene.tsx                the star, scroll-driven rotation, drifting dust
   Cosmos.tsx               grain and the corner frame
   Landing.tsx              the signed-out screen
   ScrollStory.tsx          the day, told as you scroll
@@ -331,12 +295,11 @@ web/src/app/               Today, Food, Train, Progress, Coach, onboarding
   precision it does not have.
 - **Open Food Facts is crowd-sourced.** Entries are checked against their own
   Atwater arithmetic before use, which catches gross errors but not subtle ones.
-- **The figure is an illustration of your numbers, not a scan of you.** It
-  knows your lean mass and your body fat, and it is honest about those. It does
-  not know your frame, your height distribution, where you personally store
-  fat, or your genetics — and those have a large say in what you actually look
-  like. Two people at 80 kg and 20% do not look identical, and this draws them
-  the same.
+- **Your build is a label, not a diagnosis.** Underweight, skinny fat and the
+  rest are read from BMI, body fat and fat-free mass index, which is far
+  better than BMI alone — but body fat is estimated from a tape or from BMI
+  unless you have had it measured properly, and every threshold has people
+  either side of it who do not fit.
 - **None of this is medical advice.** The safety floors and rate caps are there
   for a reason. If something here disagrees with your doctor, your doctor is
   right.
