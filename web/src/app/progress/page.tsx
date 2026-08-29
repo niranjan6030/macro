@@ -6,6 +6,7 @@ import { Camera, Loader2, Trash2, Sparkles, Ruler, Lock } from "lucide-react";
 import { get, post, del, today, prettyDate } from "@/lib/client";
 import { useResource } from "@/lib/useResource";
 import { isNative, nativePhoto } from "@/lib/native";
+import { VaultProvider, VaultGate, SealedImage, useVault } from "@/components/PhotoVault";
 import type { PhotosResponse, Measurement } from "@/lib/shape";
 
 /**
@@ -41,7 +42,7 @@ export default function ProgressPage() {
         ))}
       </div>
 
-      {tab === "photos" ? <Photos /> : <Tape />}
+      {tab === "photos" ? <VaultProvider><Photos /></VaultProvider> : <Tape />}
     </div>
   );
 }
@@ -53,13 +54,19 @@ function Photos() {
   const [pose, setPose] = useState<(typeof POSES)[number]>("front");
   const [busy, setBusy] = useState(false);
 
+  const { state, retentionDays, seal } = useVault();
+
   const fetcher = useCallback(() => get<PhotosResponse>("/api/progress/photos"), []);
   const { data, error, reload, setError } = useResource(fetcher);
 
+  /* Sealed here, in this function, before anything leaves the device. The
+     server is handed ciphertext and a nonce and has no way back to the
+     picture — see components/PhotoVault.tsx. */
   async function upload(dataUrl: string) {
     setBusy(true); setError("");
     try {
-      await post("/api/progress/photos", { image: dataUrl, pose, date: today() });
+      const { iv, cipher } = await seal(jpegBytes(dataUrl));
+      await post("/api/progress/photos", { cipher, iv, pose, date: today() });
       reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save that photo.");
@@ -68,6 +75,8 @@ function Photos() {
 
   const comparison = data?.comparison?.[pose];
   const list = data?.byPose?.[pose] ?? [];
+
+  if (state !== "open") return <VaultGate />;
 
   return (
     <div className="space-y-4">
@@ -107,8 +116,9 @@ function Photos() {
 
       <p className="flex gap-1.5 px-1 text-xs leading-relaxed text-[var(--color-mute)]">
         <Lock size={13} className="mt-px shrink-0" />
-        Private. Stored in a locked bucket, shown to you through links that expire after
-        ten minutes, and never sent to the AI.
+        Encrypted on this device before it is uploaded. Nobody who runs this app can open
+        it, and it is never sent to the AI. The image is deleted automatically after{" "}
+        {retentionMonths(retentionDays)}; the date and your weight are kept.
       </p>
 
       {comparison && (
@@ -117,9 +127,8 @@ function Photos() {
           <div className="grid grid-cols-2 gap-2">
             {([["First", comparison.first], ["Latest", comparison.latest]] as const).map(([label, p]) => (
               <figure key={label}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- signed, expiring URL */}
-                {p.url && <img src={p.url} alt={`${label} ${pose} photo`}
-                               className="aspect-[3/4] w-full rounded-xl object-cover" />}
+                <SealedImage url={p.url} iv={p.iv} alt={`${label} ${pose} photo`}
+                             className="aspect-[3/4] w-full rounded-xl object-cover" />
                 <figcaption className="mt-1.5 text-xs text-[var(--color-mute)]">
                   {label} · {prettyDate(p.on_date)}
                   {p.weight_kg && <span className="num"> · {p.weight_kg} kg</span>}
@@ -145,9 +154,8 @@ function Photos() {
           <ul className="grid grid-cols-3 gap-2">
             {list.map((p) => (
               <li key={p.id} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element -- signed, expiring URL */}
-                {p.url && <img src={p.url} alt={prettyDate(p.on_date)}
-                               className="aspect-[3/4] w-full rounded-lg object-cover" />}
+                <SealedImage url={p.url} iv={p.iv} alt={prettyDate(p.on_date)}
+                             className="aspect-[3/4] w-full rounded-lg object-cover" />
                 <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 py-0.5 text-center text-[10px]">
                   {prettyDate(p.on_date)}
                 </span>
@@ -274,6 +282,19 @@ function Tape() {
 
 const daysBetween = (a: string, b: string) =>
   Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+
+const retentionMonths = (days: number): string =>
+  days >= 3650 ? "ten years"
+  : days >= 365 ? `${Math.round(days / 365)} year${days >= 730 ? "s" : ""}`
+  : `${Math.round(days / 30)} months`;
+
+/** The JPEG the canvas produced, as bytes ready to be sealed. */
+function jpegBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
+  const raw = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
 
 async function downscale(file: File, max = 1400, quality = 0.85): Promise<string> {
   const bitmap = await createImageBitmap(file);

@@ -176,7 +176,15 @@ create table if not exists progress_photos (
   uid         text not null,
   on_date     date not null,
   pose        text default 'front' check (pose in ('front','side','back')),
-  path        text not null,
+  -- Nullable on purpose: once the image bytes are purged the row survives,
+  -- carrying the date and weight that made it worth keeping.
+  path        text,
+  -- AES-GCM nonce, base64. Null only for rows written before the vault
+  -- existed, which are the only rows the server could ever have read.
+  iv          text,
+  -- When the bytes get deleted. Null means never.
+  expires_at  date,
+  purged_at   timestamptz,
   weight_kg   numeric(5,1),
   note        text,
   created_at  timestamptz default now()
@@ -221,6 +229,62 @@ create table if not exists custom_foods (
 );
 
 create index if not exists custom_foods_uid_idx on custom_foods (uid, name);
+
+-- ---------------------------------------------------------------------
+-- The photo vault
+--
+-- Progress photos are encrypted in the browser before they are uploaded,
+-- with a key derived from a passphrase that never leaves the device. What
+-- is stored here is the PBKDF2 salt and a verifier — a known string sealed
+-- with the same key — so a mistyped passphrase is caught before it is used
+-- to garble a decryption.
+--
+-- Neither of these lets anyone read a photo. Someone holding this table,
+-- the storage bucket and the service key still has nothing but noise. That
+-- is the point: the operator is not trusted with these images, and cannot
+-- be made to hand them over.
+-- ---------------------------------------------------------------------
+create table if not exists photo_vault (
+  uid            text primary key,
+  salt           text not null,
+  verifier       text not null,
+  -- How long the encrypted bytes are kept. Photos are the single largest
+  -- thing here and the least often looked at, so they expire by default.
+  retention_days smallint not null default 180
+                 check (retention_days between 7 and 3650),
+  created_at     timestamptz default now()
+);
+
+-- ---------------------------------------------------------------------
+-- Exercises the person added themselves
+--
+-- The built-in library covers sixty-five lifts, which is most of a
+-- commercial gym and none of what anyone does at home with a resistance
+-- band. These sit alongside it: same shape, so the progression engine
+-- treats them identically.
+-- ---------------------------------------------------------------------
+create table if not exists custom_exercises (
+  id          uuid primary key default gen_random_uuid(),
+  uid         text not null,
+  name        text not null,
+  -- Which muscle it is for, using the same vocabulary as the library so
+  -- weekly set counts include it.
+  primary_muscle text not null
+    check (primary_muscle in ('chest','back','shoulders','quads','hamstrings',
+                              'glutes','biceps','triceps','calves','core')),
+  equipment   text not null default 'bodyweight'
+    check (equipment in ('barbell','dumbbell','machine','cable','bodyweight')),
+  rep_low     smallint not null default 8 check (rep_low between 1 and 100),
+  rep_high    smallint not null default 12 check (rep_high between 1 and 200),
+  note        text,
+  created_at  timestamptz default now(),
+  unique (uid, name)
+);
+
+create index if not exists progress_photos_expiry_idx
+  on progress_photos (expires_at) where path is not null;
+
+create index if not exists custom_exercises_uid_idx on custom_exercises (uid, name);
 
 -- ---------------------------------------------------------------------
 -- Coach notes
@@ -270,6 +334,8 @@ alter table workout_sets enable row level security;
 alter table progress_photos enable row level security;
 alter table measurements enable row level security;
 alter table custom_foods enable row level security;
+alter table photo_vault enable row level security;
+alter table custom_exercises enable row level security;
 alter table coach_notes enable row level security;
 
 -- ---------------------------------------------------------------------

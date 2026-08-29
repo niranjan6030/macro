@@ -181,3 +181,47 @@ Settings → Deployment Protection, or the app is visible only to you.
 **Authorised domains.** Firebase refuses OAuth from any domain not on its
 list, so Google sign-in fails on the Vercel URL until you add it: Firebase
 console → Authentication → Settings → Authorised domains.
+
+## Migrations
+
+`supabase/schema.sql` uses `create table if not exists`, which is right for a
+fresh database and useless for one that already has the tables — it skips
+them and any new column never arrives. Changes to an existing database go in
+`supabase/migrations/` as explicit `alter table` statements.
+
+Run them in the Supabase SQL editor, oldest first. They are written to be
+safe to run twice.
+
+```
+supabase/migrations/001_photo_vault.sql
+```
+
+`npm run check:migration` applies each one to a throwaway Postgres built from
+the previous schema and asserts it did what it says.
+
+## The retention sweep
+
+Progress photos expire. `/api/progress/purge` deletes the bytes of anything
+past its date and leaves the row — the date, the pose and the weight, which
+is what the chart is drawn from. Vercel Cron calls it at 03:00 daily
+(`web/vercel.json`) and authenticates with `CRON_SECRET`:
+
+```
+vercel env add CRON_SECRET production
+```
+
+Vercel sends that value as `Authorization: Bearer …` on cron invocations.
+Without the variable set the endpoint refuses everyone, including the cron,
+which fails closed rather than deleting on anyone's request.
+
+## The photo vault
+
+Progress photos are encrypted in the browser before upload, with an AES-GCM
+key derived from a passphrase by PBKDF2. The passphrase never leaves the
+device and the server stores ciphertext, a nonce, and a salt.
+
+This is deliberate and it has a consequence worth understanding before you
+run this for anyone: **there is no operator recovery path.** Whoever holds
+the database, the storage bucket, the service key and a backup still cannot
+open a single photo. Neither can you. A reset you could perform is a reset
+you could be compelled to perform.

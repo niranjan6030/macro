@@ -2,6 +2,7 @@ import "server-only";
 import { getAdminSupabase } from "@/lib/supabase/server";
 import { type Nutrients, EMPTY, sum } from "@/lib/nutrition/types";
 import { type Profile, type ActivityLevel, type Goal, type Sex } from "@/lib/fitness/energy";
+import { type Exercise, type Muscle, type Equipment } from "@/lib/fitness/training";
 
 /**
  * Every read and write, scoped by uid.
@@ -395,14 +396,21 @@ export interface PhotoRow {
   id: string;
   on_date: string;
   pose: "front" | "side" | "back";
-  path: string;
+  /** Null once the bytes have been purged; the row itself stays. */
+  path: string | null;
+  /** AES-GCM nonce. Null only on rows written before the vault existed. */
+  iv: string | null;
+  expires_at: string | null;
+  purged_at: string | null;
   weight_kg: number | null;
   note: string | null;
 }
 
+const PHOTO_COLS = "id, on_date, pose, path, iv, expires_at, purged_at, weight_kg, note";
+
 export async function listPhotos(uid: string): Promise<PhotoRow[]> {
   const { data } = await db()
-    .from("progress_photos").select("id, on_date, pose, path, weight_kg, note")
+    .from("progress_photos").select(PHOTO_COLS)
     .eq("uid", uid).order("on_date", { ascending: true });
   return (data ?? []) as PhotoRow[];
 }
@@ -420,25 +428,116 @@ export async function signPhoto(path: string, seconds = 600): Promise<string | n
 
 export const PHOTO_BUCKET = "progress";
 
+/**
+ * Store an already-encrypted photo.
+ *
+ * `bytes` is ciphertext. Nothing on this side has the key, so the extension
+ * is `.bin` and the content type is octet-stream — calling it a JPEG would
+ * imply someone here could open it. What is stored in plain columns is the
+ * date, the pose and the weight that day: enough to draw the progress chart
+ * after the image itself has expired, and not enough to identify anyone.
+ */
 export async function savePhoto(
-  uid: string, date: string, pose: PhotoRow["pose"], bytes: Uint8Array, contentType: string,
+  uid: string, date: string, pose: PhotoRow["pose"], bytes: Uint8Array, iv: string,
 ): Promise<PhotoRow> {
   // Path is namespaced by uid so one person's photos can never collide with
   // another's, even before the row is written.
-  const path = `${uid}/${date}-${pose}-${crypto.randomUUID().slice(0, 8)}.jpg`;
+  const path = `${uid}/${date}-${pose}-${crypto.randomUUID().slice(0, 8)}.bin`;
 
   const { error: upErr } = await db().storage
     .from(PHOTO_BUCKET)
-    .upload(path, bytes, { contentType, upsert: false });
+    .upload(path, bytes, { contentType: "application/octet-stream", upsert: false });
   if (upErr) throw new Error(upErr.message);
 
-  const weight = await latestWeight(uid);
+  const [weight, keep] = await Promise.all([latestWeight(uid), retentionDays(uid)]);
+
   const { data, error } = await db()
     .from("progress_photos")
-    .insert({ uid, on_date: date, pose, path, weight_kg: weight })
-    .select("id, on_date, pose, path, weight_kg, note").single();
+    .insert({
+      uid, on_date: date, pose, path, iv, weight_kg: weight,
+      expires_at: addDays(date, keep),
+    })
+    .select(PHOTO_COLS).single();
   if (error) throw new Error(error.message);
   return data as PhotoRow;
+}
+
+const addDays = (iso: string, n: number): string => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/* --------------------------------------------------------------------- */
+/* The vault                                                              */
+/*                                                                        */
+/* Salt and verifier only. Neither is a key, and neither gets anyone any  */
+/* closer to reading a photo — see lib/vault.ts for why that is the whole */
+/* point.                                                                 */
+/* --------------------------------------------------------------------- */
+
+export interface VaultRow { salt: string; verifier: string; retention_days: number }
+
+export async function getVault(uid: string): Promise<VaultRow | null> {
+  const { data } = await db()
+    .from("photo_vault").select("salt, verifier, retention_days")
+    .eq("uid", uid).maybeSingle();
+  return (data as VaultRow) ?? null;
+}
+
+export async function createVault(
+  uid: string, salt: string, verifier: string, retentionDays: number,
+): Promise<VaultRow | null> {
+  const { data } = await db()
+    .from("photo_vault")
+    .insert({ uid, salt, verifier, retention_days: retentionDays })
+    .select("salt, verifier, retention_days").single();
+  return (data as VaultRow) ?? null;
+}
+
+export async function setRetention(uid: string, days: number): Promise<boolean> {
+  const { error } = await db()
+    .from("photo_vault").update({ retention_days: days }).eq("uid", uid);
+  if (error) return false;
+
+  // Re-date what is already stored, so the setting means what it says rather
+  // than applying only to photos taken after it was changed. Shortening the
+  // window can move an expiry into the past; the next sweep collects those.
+  const { data } = await db()
+    .from("progress_photos").select("id, on_date").eq("uid", uid).not("path", "is", null);
+
+  await Promise.all(((data ?? []) as { id: string; on_date: string }[]).map((r) =>
+    db().from("progress_photos")
+      .update({ expires_at: addDays(r.on_date, days) }).eq("id", r.id),
+  ));
+  return true;
+}
+
+const retentionDays = async (uid: string): Promise<number> =>
+  (await getVault(uid))?.retention_days ?? 180;
+
+/**
+ * Delete photo bytes that have outlived their retention.
+ *
+ * The rows stay. A progress chart made of dates and weights is worth keeping
+ * for years and costs almost nothing; the images behind it are the expensive
+ * part and the part nobody looks at twice.
+ */
+export async function purgeExpiredPhotos(limit = 500): Promise<number> {
+  const today = isoDate(null);
+  const { data } = await db()
+    .from("progress_photos").select("id, path")
+    .not("path", "is", null).lte("expires_at", today).limit(limit);
+
+  const rows = (data ?? []) as { id: string; path: string }[];
+  if (!rows.length) return 0;
+
+  await db().storage.from(PHOTO_BUCKET).remove(rows.map((r) => r.path));
+  await db().from("progress_photos")
+    .update({ path: null, iv: null, purged_at: new Date().toISOString() })
+    .in("id", rows.map((r) => r.id));
+
+  return rows.length;
 }
 
 export async function deletePhoto(uid: string, id: string): Promise<boolean> {
@@ -482,4 +581,65 @@ export async function upsertMeasurement(
     .select().single();
   if (error) throw new Error(error.message);
   return data as Measurement;
+}
+
+// -----------------------------------------------------------------------
+// Exercises someone added themselves
+//
+// These are returned in the same shape as the built-in library so the
+// progression engine, the volume counters and the picker cannot tell the
+// difference. The `custom:` id prefix is the only tell, and it exists so a
+// workout set can point at one without colliding with a library id.
+// -----------------------------------------------------------------------
+
+export interface CustomExerciseRow {
+  id: string;
+  name: string;
+  primary_muscle: Muscle;
+  equipment: Equipment;
+  rep_low: number;
+  rep_high: number;
+  note: string | null;
+}
+
+export const asExercise = (r: CustomExerciseRow): Exercise => ({
+  id: `custom:${r.id}`,
+  name: r.name,
+  primary: r.primary_muscle,
+  secondary: [],
+  equipment: r.equipment,
+  // Someone adding their own movement is nearly always adding an accessory.
+  // Guessing "compound" would inflate their volume numbers.
+  compound: false,
+  repRange: [r.rep_low, r.rep_high],
+  cue: r.note ?? "Your own movement.",
+});
+
+export async function listCustomExercises(uid: string): Promise<Exercise[]> {
+  const { data } = await db()
+    .from("custom_exercises")
+    .select("id, name, primary_muscle, equipment, rep_low, rep_high, note")
+    .eq("uid", uid).order("name");
+  return ((data ?? []) as CustomExerciseRow[]).map(asExercise);
+}
+
+export async function addCustomExercise(
+  uid: string,
+  fields: {
+    name: string; primary_muscle: Muscle; equipment: Equipment;
+    rep_low: number; rep_high: number; note: string | null;
+  },
+): Promise<Exercise | null> {
+  const { data, error } = await db()
+    .from("custom_exercises").insert({ uid, ...fields })
+    .select("id, name, primary_muscle, equipment, rep_low, rep_high, note").single();
+  // A duplicate name is the one failure worth distinguishing, and the caller
+  // turns a null into a readable message rather than a 500.
+  if (error || !data) return null;
+  return asExercise(data as CustomExerciseRow);
+}
+
+export async function deleteCustomExercise(uid: string, id: string): Promise<boolean> {
+  const { error } = await db().from("custom_exercises").delete().eq("uid", uid).eq("id", id);
+  return !error;
 }
