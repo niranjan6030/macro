@@ -162,3 +162,22 @@ npm run dev         # terminal two
 
 Sign-in works completely, including the server session cookie. Without
 Supabase, nothing is saved between reloads.
+
+---
+
+## Deploying
+
+The project is on Vercel, with the repository connected, so a push to `main`
+deploys. The eleven environment variables above have to exist there too —
+`vercel env add` for each, across production, preview and development.
+
+Two things bite on the first deploy and neither is obvious from the error:
+
+**Deployment Protection.** Vercel switches this on for new projects, and every
+request — pages and API alike — redirects to a Vercel login. The site looks
+like it is up, because following the redirect returns 200. Turn it off under
+Settings → Deployment Protection, or the app is visible only to you.
+
+**Authorised domains.** Firebase refuses OAuth from any domain not on its
+list, so Google sign-in fails on the Vercel URL until you add it: Firebase
+console → Authentication → Settings → Authorised domains.
