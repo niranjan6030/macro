@@ -62,26 +62,58 @@ if (usingEmulator) {
     info("Firebase console → Project settings → General → Your apps → Web app");
   } else {
     ok("Web config present");
-    // The API key is checked by asking Identity Toolkit which sign-in methods
-    // the project has enabled. A wrong key fails here, not at first sign-in.
+
+    /* Which providers are switched on is not public information — the
+       /v1/projects endpoint returns only the project id and the authorised
+       domains. An earlier version of this read a `signIn.email.enabled` field
+       from it, which does not exist, so it reported email sign-in as OFF on
+       every project ever checked, including ones where it plainly worked.
+       
+       Instead, probe it: attempt to sign in as an address that cannot exist
+       and read the error. A disabled provider answers OPERATION_NOT_ALLOWED;
+       an enabled one gets as far as rejecting the credentials. Nothing is
+       created either way. */
     try {
-      const url = `https://identitytoolkit.googleapis.com/v1/projects?key=${env.NEXT_PUBLIC_FIREBASE_API_KEY}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const cfg = await res.json();
-        ok("The API key works and the project answers");
-        const providers = (cfg.signIn ?? {});
-        const email = providers.email?.enabled;
-        info(`Email/password sign-in: ${email ? "on" : "OFF — enable it in Authentication → Sign-in method"}`);
-        if (!email) failures++;
-      } else if (res.status === 400) {
+      const probe = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "macro-doctor-probe@invalid.invalid",
+            password: "not-a-real-password",
+            returnSecureToken: true,
+          }),
+        },
+      );
+      const body = await probe.json();
+      const message = body?.error?.message ?? "";
+
+      if (/API_KEY_INVALID|API key not valid/i.test(message)) {
         bad("The API key was rejected. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
+      } else if (/OPERATION_NOT_ALLOWED/.test(message)) {
+        bad("Email/password sign-in is OFF");
+        info("Authentication → Sign-in method → Email/Password → Enable");
       } else {
-        bad(`Firebase answered ${res.status} — the key may be restricted to other domains.`);
+        ok("The API key works and email/password sign-in is on");
       }
     } catch (e) {
       bad(`Could not reach Firebase: ${e.message}`);
     }
+
+    /* Authorised domains. OAuth providers refuse to run on a domain that is
+       not listed, and the failure at sign-in time says almost nothing useful,
+       so it is worth surfacing here. */
+    try {
+      const res = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/projects?key=${env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+      );
+      if (res.ok) {
+        const { authorizedDomains = [] } = await res.json();
+        ok(`Authorised for: ${authorizedDomains.join(", ")}`);
+        info("Google sign-in only works on these. Add your deployed domain before launch.");
+      }
+    } catch { /* already reported above */ }
   }
 }
 
