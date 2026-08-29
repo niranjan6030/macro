@@ -162,7 +162,14 @@ export async function identify(dataUrl: string): Promise<IdentifyResult> {
     raw = call.args as unknown as RawResult;
   } catch (e) {
     console.error("[identify] vision call failed", e);
-    return { items: [], notFood: false, message: "Photo recognition is unavailable right now." };
+    // A busy model is temporary and worth saying so; anything else is not.
+    const busy = (e as { overloaded?: boolean })?.overloaded;
+    return {
+      items: [], notFood: false,
+      message: busy
+        ? "The photo reader is busy right now. Try again in a minute, or search for the food by name."
+        : "Photo recognition is unavailable right now.",
+    };
   }
 
   if (raw.not_food || !raw.items?.length) {

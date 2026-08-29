@@ -25,8 +25,71 @@ import { provider, type Round, type RoundResult, type ToolCall } from "./provide
 
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 /* Flash rather than Pro: this is a per-message cost on a free tier with a
-   request-per-minute cap, and the work is short. */
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+   request-per-minute cap, and the work is short.
+ *
+ * The version is pinned rather than tracking `gemini-flash-latest`, because a
+ * silent model change would alter how photographs are read without anything
+ * in this repository changing. `gemini-2.5-flash` was the original default and
+ * Google has since closed it to new keys, which is exactly the kind of break
+ * a pinned version makes visible instead of mysterious. Override with
+ * GEMINI_MODEL. */
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.7-flash";
+
+/*
+ * Models to fall back through when the first one is busy.
+ *
+ * Free-tier Gemini answers 503 "experiencing high demand" fairly often, and
+ * the newest flash model is the most contended precisely because it is the
+ * default everywhere. The SDK's own retries make this worse rather than
+ * better: they sit on the same overloaded model for the best part of a
+ * minute, so a photograph takes 51 seconds to fail.
+ *
+ * Stepping down a generation instead usually answers immediately, and for
+ * naming the food on a plate the difference in quality is not detectable.
+ * Ordered newest first; the configured model is always tried before these.
+ */
+const GEMINI_FALLBACKS = [
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+];
+
+/**
+ * Which models are known to be busy, and until when.
+ *
+ * Falling back works, but on its own it pays the full timeout every single
+ * time: a three-round conversation spent thirty seconds waiting on the same
+ * overloaded model before stepping down, three times over, and took nearly
+ * two minutes to answer something that needed twenty.
+ *
+ * So a model that reports itself overloaded is skipped for a couple of
+ * minutes. Module-level and deliberately not persisted — it is a hint, it
+ * costs nothing to be wrong about, and a fresh process should try the best
+ * model again rather than inherit an old grudge.
+ */
+const busyUntil = new Map<string, number>();
+const BUSY_FOR_MS = 120_000;
+
+const isBusy = (model: string) => (busyUntil.get(model) ?? 0) > Date.now();
+const markBusy = (model: string) => busyUntil.set(model, Date.now() + BUSY_FOR_MS);
+
+
+/**
+ * Is this a "the model is busy" failure, or a real one?
+ *
+ * 503 is the obvious case. 504 matters just as much and was missed at first:
+ * an overloaded model does not always refuse, it sometimes simply never
+ * answers, and the request dies on the deadline instead. That threw straight
+ * out of the loop rather than falling back — so a busy model produced a hard
+ * error for the person waiting, which is precisely what the fallback exists
+ * to prevent.
+ */
+function isOverloaded(e: unknown): boolean {
+  const status = (e as { status?: number })?.status;
+  if (status === 503 || status === 504 || status === 429) return true;
+  const text = String((e as Error)?.message ?? "");
+  return /UNAVAILABLE|RESOURCE_EXHAUSTED|DEADLINE_EXCEEDED|high demand|overloaded|timed? ?out/i
+    .test(text);
+}
 
 export interface ImageInput {
   mediaType: "image/jpeg" | "image/png" | "image/webp";
@@ -40,7 +103,7 @@ export async function runRound(
     case "anthropic": return anthropicRound(round);
     case "gemini": return geminiRound(round);
     default:
-      return { text: "", calls: [], raw: null };
+      return { text: "", calls: [], scratch: [] };
   }
 }
 
@@ -65,17 +128,19 @@ async function anthropicRound(r: Round & { image?: ImageInput }): Promise<RoundR
     return { role: t.role, content: t.content };
   });
 
-  if (r.previous) {
-    messages.push({ role: "assistant", content: r.previous as Anthropic.ContentBlockParam[] });
-  }
+  /* Everything already said in this tool exchange, then the results that came
+     back from the last round. Kept whole so the model can see what it has
+     already looked up. */
+  const scratch = [...((r.scratch ?? []) as Anthropic.MessageParam[])];
   if (r.toolResults?.length) {
-    messages.push({
+    scratch.push({
       role: "user",
       content: r.toolResults.map((t) => ({
         type: "tool_result" as const, tool_use_id: t.id, content: t.result,
       })),
     });
   }
+  messages.push(...scratch);
 
   const res = await client.messages.create({
     model: ANTHROPIC_MODEL,
@@ -102,7 +167,8 @@ async function anthropicRound(r: Round & { image?: ImageInput }): Promise<RoundR
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text).join("").trim();
 
-  return { text, calls, raw: res.content };
+  scratch.push({ role: "assistant", content: res.content });
+  return { text, calls, scratch };
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,7 +176,28 @@ async function anthropicRound(r: Round & { image?: ImageInput }): Promise<RoundR
 /* ------------------------------------------------------------------ */
 
 async function geminiRound(r: Round & { image?: ImageInput }): Promise<RoundResult> {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY!,
+    /* Do not retry, and do not wait long.
+     *
+     * The SDK's default is five attempts with exponential backoff, which on a
+     * 503 means sitting on an overloaded model for the better part of a
+     * minute — and then this code falls back to a different one anyway, so a
+     * photograph took 99 seconds to come back. Retrying a model that is out
+     * of capacity only waits for it to still be out of capacity.
+     *
+     * One attempt, a hard ceiling, and the loop below moves to the next model
+     * immediately. Falling back is the retry.
+     *
+     * 30 seconds rather than something tighter because a round that calls
+     * tools genuinely takes longer than one that does not, and the fallback
+     * list is short enough that the worst case stays inside a minute and a
+     * half. */
+    httpOptions: {
+      timeout: 30_000,
+      retryOptions: { attempts: 1 },
+    },
+  });
 
   const contents: Content[] = r.history.map((t, i) => {
     const parts: Part[] = [];
@@ -122,19 +209,21 @@ async function geminiRound(r: Round & { image?: ImageInput }): Promise<RoundResu
     return { role: t.role === "assistant" ? "model" : "user", parts };
   });
 
-  if (r.previous) contents.push(r.previous as Content);
-
+  const scratch = [...((r.scratch ?? []) as Content[])];
   if (r.toolResults?.length) {
-    contents.push({
+    scratch.push({
       role: "user",
       parts: r.toolResults.map((t) => ({
         functionResponse: { name: t.name, response: { result: t.result } },
       })),
     });
   }
+  contents.push(...scratch);
 
-  const res = await ai.models.generateContent({
-    model: GEMINI_MODEL,
+  /* Try the configured model, then step down. Each attempt is a different
+     model rather than the same one again, which is the point — retrying a
+     model that is out of capacity just waits for it to still be out. */
+  const request = {
     contents,
     config: {
       systemInstruction: r.system,
@@ -163,7 +252,41 @@ async function geminiRound(r: Round & { image?: ImageInput }): Promise<RoundResu
           }
         : {}),
     },
-  });
+  };
+
+  const chain = [GEMINI_MODEL, ...GEMINI_FALLBACKS];
+  /* Try the ones not known to be busy first, but keep the rest as a last
+     resort — the cooldown is a guess, and being wrong about it should cost a
+     slow answer rather than no answer. */
+  const order = [...chain.filter((m) => !isBusy(m)), ...chain.filter(isBusy)];
+
+  let res;
+  let lastError: unknown;
+  for (const model of order) {
+    try {
+      res = await ai.models.generateContent({ model, ...request });
+      if (model !== GEMINI_MODEL) {
+        console.warn(`[ai] answered with ${model} (${GEMINI_MODEL} is busy)`);
+      }
+      busyUntil.delete(model);
+      break;
+    } catch (e) {
+      lastError = e;
+      if (!isOverloaded(e)) throw e;
+      markBusy(model);
+    }
+  }
+  if (!res) {
+    // Every model was busy. Say that, rather than something generic — it is
+    // temporary, and the person should simply try again in a minute.
+    const e = new Error(
+      "Every Gemini model is busy at the moment. This usually clears in a "
+      + "minute — try again.",
+    ) as Error & { overloaded?: boolean };
+    e.overloaded = true;
+    e.cause = lastError;
+    throw e;
+  }
 
   const parts = res.candidates?.[0]?.content?.parts ?? [];
 
@@ -180,5 +303,7 @@ async function geminiRound(r: Round & { image?: ImageInput }): Promise<RoundResu
 
   const text = parts.filter((p) => p.text).map((p) => p.text).join("").trim();
 
-  return { text, calls, raw: res.candidates?.[0]?.content ?? null };
+  const turn = res.candidates?.[0]?.content;
+  if (turn) scratch.push(turn);
+  return { text, calls, scratch };
 }
