@@ -96,6 +96,14 @@ export function friendlyAuthError(code: string): string {
         ? "Cannot reach the Firebase Auth emulator. Start it with `npm run emulator` in another terminal."
         : "Network problem — check your connection.";
     case "auth/operation-not-allowed": return "That sign-in method is not enabled on this Firebase project yet.";
+    // Worth naming the domain. This one cost an afternoon once: Google, Apple
+    // and phone all fail here — phone because its reCAPTCHA will not load —
+    // while email carries on working, which makes it look like three separate
+    // faults instead of one missing line in a list.
+    case "auth/unauthorized-domain":
+      return typeof window !== "undefined"
+        ? `${window.location.hostname} is not in this Firebase project's authorised domains. Add it under Authentication → Settings.`
+        : "This domain is not in the Firebase project's authorised domains.";
     default: return "Could not sign you in. Try again.";
   }
 }
