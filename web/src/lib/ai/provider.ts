@@ -69,11 +69,22 @@ export interface Round {
   maxTokens?: number;
   /** Results of the previous round's tool calls, keyed by call id. */
   toolResults?: { id: string; name: string; result: string }[];
-  /** The assistant turn that requested those tools, as returned last round. */
-  previous?: unknown;
+  /**
+   * Everything said since the last plain-text turn: the assistant turns that
+   * asked for tools, and the results that came back.
+   *
+   * This carried only the *previous* round at first, which quietly broke
+   * multi-step questions. Asked what is in two rotis and a katori of dal, the
+   * model looked up the roti, then the dal — and by the third round the roti
+   * result had fallen out of the conversation, so it asked for the dal again,
+   * and again, until it ran out of rounds and gave up. It is opaque here
+   * because each provider shapes these turns differently; pass back whatever
+   * the last round returned.
+   */
+  scratch?: unknown[];
 }
 
 export interface RoundResult extends Reply {
-  /** Pass back as `previous` on the next round. */
-  raw: unknown;
+  /** Pass back as `scratch` on the next round. */
+  scratch: unknown[];
 }

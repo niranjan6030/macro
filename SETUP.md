@@ -108,6 +108,13 @@ uid themselves.
 
 **AI** — one key switches on photo logging, Macro AI and the weekly review:
 
+Gemini's free tier is generous but genuinely busy: the newest flash model
+frequently answers 503 "experiencing high demand". Macro handles that by
+falling back through older flash models and remembering for two minutes which
+ones are busy, so only the first request of a session pays for the discovery.
+Expect roughly 10-20 seconds for a reply once warm.
+
+
 ```
 ANTHROPIC_API_KEY=      # console.anthropic.com — paid, a fraction of a cent per photo
 GEMINI_API_KEY=         # aistudio.google.com — has a free tier

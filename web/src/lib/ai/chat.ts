@@ -105,6 +105,12 @@ TRAINING
 RULES — these are not style preferences, they are the point of the product:
 - Never state a calorie or macronutrient figure from memory. If you need to
   know what a food contains, call look_up_food. Every time.
+- Look up every food in the question at once, in a single turn, rather than
+  one per turn.
+- Take the first result you are given and use it. Do not search again for a
+  closer name — "toor dal cooked" is a perfectly good answer for "dal", and a
+  second search costs the person several seconds for a difference of a few
+  calories. Only search again if the result is plainly a different food.
 - Never invent a number about this person. If it is not above, say you do not
   have it and say what they would need to log for you to know.
 - Arithmetic on the numbers above is fine and encouraged — that is your job.
@@ -137,16 +143,19 @@ export async function reply(
   const system = systemPrompt(context);
   const lookups: string[] = [];
 
-  let previous: unknown = undefined;
+  let scratch: unknown[] | undefined;
   let toolResults: { id: string; name: string; result: string }[] | undefined;
 
-  /* Up to four rounds, because "two rotis, dal and a bowl of rice" needs three
-     separate lookups before it can be answered. Beyond that it is looping
-     rather than working. */
-  for (let round = 0; round < 4; round++) {
+  /* Six rounds. Four was not enough in practice: a question naming two foods
+     could spend a round on each, then another deciding it wanted a better
+     match, and run out before answering. The prompt now asks for one batched
+     turn, so this ceiling should rarely be approached — it is a stop, not a
+     budget. */
+  for (let round = 0; round < 6; round++) {
     const res = await runRound({
-      system, history, tools: [LOOKUP], maxTokens: 900, previous, toolResults,
+      system, history, tools: [LOOKUP], maxTokens: 900, scratch, toolResults,
     });
+    scratch = res.scratch;
 
     if (!res.calls.length) {
       return {
@@ -155,7 +164,6 @@ export async function reply(
       };
     }
 
-    previous = res.raw;
     toolResults = await Promise.all(res.calls.map(async (call) => {
       const { query, grams } = call.args as { query?: string; grams?: number };
       const q = typeof query === "string" ? query : "";
@@ -187,12 +195,18 @@ async function lookUp(query: string, grams?: number): Promise<string> {
     : f.confidence === "label" ? "from the manufacturer's panel"
     : "an estimate";
 
+  /* Deliberately no list of alternatives.
+   *
+   * An earlier version ended with "Other matches: ...", and the model read
+   * that as an invitation — it kept searching for a closer name instead of
+   * answering, burning a round each time and several seconds of the person's
+   * life for a difference of a few calories. The best match is the answer. */
   return [
     `${f.name}${f.brand ? ` (${f.brand})` : ""} — per ${basis}:`,
     `${Math.round(n.kcal)} kcal, ${n.protein} g protein, ${n.carbs} g carbs, `
       + `${n.fat} g fat, ${n.fibre} g fibre.`,
     `Source: ${f.source}, ${source}.`,
     f.servingG ? `One ${f.servingLabel ?? "serving"} is about ${f.servingG} g.` : "",
-    hits.length > 1 ? `Other matches: ${hits.slice(1).map((h) => h.name).join(", ")}.` : "",
+    "This is the best match. Use it.",
   ].filter(Boolean).join(" ");
 }
