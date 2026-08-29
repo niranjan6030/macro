@@ -159,7 +159,16 @@ if (!url || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   bad("SUPABASE_SERVICE_ROLE_KEY is missing");
   info("Every write goes through it. Without it, saving fails.");
 } else {
-  ok("Keys present");
+  /* Supabase has two generations of key. The legacy pair are JWTs — anon and
+     service_role — and the newer ones are opaque strings prefixed
+     sb_publishable_ and sb_secret_. The newer ones can be revoked
+     individually; a leaked service_role could only be dealt with by rotating
+     the JWT secret, which invalidates both at once. Worth saying which is in
+     use, because the answer changes what you do if one gets out. */
+  const legacy = service.startsWith("eyJ");
+  ok(legacy
+    ? "Keys present (legacy anon/service_role — the newer sb_secret_ keys can be revoked one at a time)"
+    : "Keys present (publishable/secret — revocable individually)");
   try {
     const db = createClient(url, service, { auth: { persistSession: false } });
 
