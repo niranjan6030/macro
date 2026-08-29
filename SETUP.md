@@ -1,0 +1,157 @@
+# Connecting Macro to Firebase and Supabase
+
+Everything in the app is already written against these two services. What is
+missing is the accounts, which have to be yours — nobody can create them on
+your behalf, and the secret keys should never be pasted into a chat window.
+
+There is a checker for all of it. At any point:
+
+```bash
+cd web && npm run doctor
+```
+
+It uses every key it finds rather than just looking at it, and reports what is
+missing, what is wrong, and where to fix it. It never prints a secret, so it is
+safe to run with someone looking over your shoulder.
+
+---
+
+## 1. Firebase — who people are
+
+**Create the project.** <https://console.firebase.google.com> → *Add project*.
+Call it whatever you like. Google Analytics is not needed.
+
+**Turn on the ways people sign in.** *Build → Authentication → Get started*,
+then under *Sign-in method* enable:
+
+| Method | What it needs |
+|---|---|
+| Email/Password | Nothing. Enable it. |
+| Google | Nothing — pick a support email. |
+| Apple | An Apple Developer account (£79/yr). Skip unless you want iOS. |
+| Phone | Nothing to start. Free tier covers ~10 SMS/day. |
+
+Enable at least **Email/Password** and **Google**; the app offers whichever are
+on and the others simply fail with a clear message.
+
+**Get the web config.** *Project settings → General → Your apps → Web app*
+(click `</>` if there isn't one). Copy the six values into `web/.env.local`:
+
+```
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+```
+
+These are public by design. Firebase's security comes from the authorised
+domain list, not from hiding them.
+
+**Get the server key.** *Project settings → Service accounts → Generate new
+private key*. A JSON file downloads. This one **is** secret. Put the whole
+thing on one line:
+
+```
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"...", ... }
+```
+
+Without it people can sign in but the server cannot verify them, so nobody
+stays signed in past a page load.
+
+**Delete the two emulator lines** from `web/.env.local` once the real values
+are in, or the app will keep talking to the local emulator.
+
+**Authorised domains.** *Authentication → Settings → Authorised domains* — add
+your deployed domain. `localhost` is already there.
+
+---
+
+## 2. Supabase — where everything is kept
+
+**Create the project.** <https://supabase.com/dashboard> → *New project*.
+Choose the region closest to you; for India, Mumbai (`ap-south-1`).
+
+**Run the schema.** *SQL Editor → New query*, paste all of
+`supabase/schema.sql`, and run it. It creates nine tables, a totals view, and
+turns on row-level security everywhere. It is safe to run again later.
+
+The schema is tested before it reaches you — `npm run check:schema` applies it
+to a real Postgres and exercises it, so a syntax error cannot get this far.
+
+**Make the photo bucket.** *Storage → New bucket*, name it exactly `progress`,
+and **leave "Public bucket" unticked**. Progress photos are the most personal
+thing the app holds; they are served through links that expire in ten minutes.
+
+**Copy the keys.** *Project settings → API*:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+The service role key bypasses row-level security. It is server-only and must
+never appear in anything the browser downloads.
+
+**A note on how these two fit together.** Identity is Firebase's job and
+storage is Supabase's, so Supabase never sees a logged-in user —
+`auth.uid()` is always null. Every table is therefore locked shut to the anon
+key, and all reads and writes go through the app's own route handlers, which
+verify the Firebase session cookie first and then scope every query by that
+uid themselves.
+
+---
+
+## 3. Optional
+
+**AI** — one key switches on photo logging, Macro AI and the weekly review:
+
+```
+ANTHROPIC_API_KEY=      # console.anthropic.com — paid, a fraction of a cent per photo
+GEMINI_API_KEY=         # aistudio.google.com — has a free tier
+```
+
+On Gemini's **free** tier your prompts may be used to train Google's models.
+This app sends photographs of your meals and figures about your body. Progress
+photos are never sent to any model either way, but bear it in mind.
+
+**USDA** — free, improves whole-food search:
+<https://fdc.nal.usda.gov/api-key-signup.html>
+
+```
+USDA_API_KEY=
+```
+
+Without any of these the app still runs. Packaged food, the Indian food table,
+training, targets and the projection all work.
+
+---
+
+## 4. Check it
+
+```bash
+cd web
+npm run doctor      # every key, actually used
+npm run dev
+```
+
+`doctor` will tell you if the schema has not been run, if the storage bucket is
+missing or public, if the service account belongs to a different project than
+the web config, or if email sign-in is still switched off.
+
+---
+
+## Developing without any of it
+
+`web/.env.local` ships pointing at the Firebase Auth emulator, which needs no
+account:
+
+```bash
+npm run emulator    # terminal one — needs Java
+npm run dev         # terminal two
+```
+
+Sign-in works completely, including the server session cookie. Without
+Supabase, nothing is saved between reloads.

@@ -21,7 +21,15 @@
 --     silently rewrite what someone ate in March.
 -- =====================================================================
 
-create extension if not exists "pgcrypto";
+/*
+ * No extensions required.
+ *
+ * The only thing this schema ever wanted pgcrypto for was gen_random_uuid(),
+ * which has been part of core Postgres since version 13 — Supabase runs 15
+ * and up. Requiring the extension gained nothing and made the schema
+ * impossible to run anywhere that does not ship it, including the harness
+ * that now tests it before you do.
+ */
 
 -- ---------------------------------------------------------------------
 -- Profile: who they are and what they are aiming at
