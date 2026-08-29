@@ -1,68 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { buildBody, torsoContainment } from "@/lib/three/body";
+import { buildStar, shadeStar } from "@/lib/three/star";
 import { dustMaterial, dustSprite, surfaceDust } from "@/lib/three/dust";
-import { physiqueOf, type Composition } from "@/lib/fitness/physique";
-import { useBody } from "@/lib/bodyStore";
 
 /**
- * The figure, turning as you scroll.
+ * The star, turning as you scroll.
  *
- * Fixed behind the page and non-interactive: it is the ground the content
- * sits on, not something you click. Scroll drives rotation directly rather
- * than through a spring, so the connection between the wheel and the body is
+ * Fixed behind the page and non-interactive: it is the ground the content sits
+ * on, not something you click. Scroll drives rotation directly rather than
+ * through a spring, so the connection between the wheel and the shape is
  * immediate — that link is the whole effect, and half a second of easing
  * breaks it.
  *
- * Everything is monochrome. There is one white key light, one rim light
- * behind the shoulders to separate the figure from the black, and a dim fill
- * so the front never goes fully to zero.
- */
-
-const CAP_DPR = 1.8;               // retina is wasted on a matte white body
-/* A slow sway, not a turntable. The figure is the person's own body and its
-   default state should be facing them; an unbounded drift meant it was
-   showing its back as often as its front, for no reason anyone asked for. */
-const SWAY_SPEED = 0.00034;
-const SWAY_RADIANS = 0.12;
-const SCROLL_TO_RADIANS = 0.0042;  // about a full turn per three screens
-
-/**
- * The default body, for anyone not signed in or not set up yet.
+ * It is drawn as dust rather than as a surface. Tens of thousands of points
+ * scattered over the geometry by triangle area and blended additively: the
+ * shape becomes translucent, its edges feather away instead of stopping, and
+ * it brightens where it is dense. A lit polygon surface can do none of that —
+ * it is opaque, hard-edged, and gets darker at glancing angles rather than
+ * brighter.
  *
- * A real 178 cm, 80 kg man at 22% — around the middle of the range, which is
- * where most people actually start. Not a shredded ideal: the landing screen
- * should not open with a body nobody has.
+ * This does nothing else. No data drives it and nothing reads from it.
  */
-const DEFAULT_BODY: Composition = {
-  sex: "male", heightCm: 178, weightKg: 80, bodyFatPct: 22, leanKg: 80 * 0.78,
-};
 
-export function Scene({
-  className,
-  composition,
-}: {
-  className?: string;
-  /** The person's own body. Falls back to a neutral default. */
-  composition?: Composition | null;
-}) {
+const CAP_DPR = 1.8;
+const SWAY_SPEED = 0.00028;
+const SWAY_RADIANS = 0.10;
+/** About a full turn per three screens of scrolling. */
+const SCROLL_TO_RADIANS = 0.0042;
+
+const RADIUS: [number, number, number] = [1.0, 1.02, 0.34];
+
+export function Scene({ className }: { className?: string }) {
   const host = useRef<HTMLDivElement>(null);
-  const fromStore = useBody((s) => s.composition);
-
-  /* Rebuild only when the composition genuinely moves. Rounding first means a
-     50 g fluctuation on the scales does not rebuild 14,000 vertices, while a
-     real change still does. */
-  const physique = useMemo(() => {
-    const c = composition ?? fromStore ?? DEFAULT_BODY;
-    return physiqueOf({
-      ...c,
-      weightKg: Math.round(c.weightKg * 2) / 2,
-      bodyFatPct: Math.round(c.bodyFatPct * 2) / 2,
-      leanKg: Math.round(c.leanKg * 2) / 2,
-    });
-  }, [composition, fromStore]);
 
   useEffect(() => {
     const mount = host.current;
@@ -72,7 +43,7 @@ export function Scene({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-    camera.position.set(0, 0.02, 4.6);
+    camera.position.set(0, 0, 5.2);
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -82,143 +53,84 @@ export function Scene({
       // perfectly usable without this, so fail quietly.
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, CAP_DPR));
+    const dpr = Math.min(window.devicePixelRatio, CAP_DPR);
+    renderer.setPixelRatio(dpr);
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
-    /* --- the figure ------------------------------------------------- */
-    const geometry = buildBody(physique);
+    /* --- the star ---------------------------------------------------- */
+    const geometry = buildStar({ radius: RADIUS });
+    shadeStar(geometry, RADIUS);
 
-    /* Two layers.
-     *
-     * The mesh underneath is dim and semi-transparent: it carries the light
-     * and therefore the anatomy, but on its own it reads as a solid object
-     * with a hard silhouette, which is the opposite of the look being aimed
-     * at. Kept faint, it becomes the form the dust is wrapped around.
-     *
-     * `depthWrite: false` so it never occludes the dust in front of it, and
-     * `side: DoubleSide` so the inside of the far surface still contributes —
-     * both of which are what make it read as a volume rather than a shell. */
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xb6bccd,
-      roughness: 0.85,
-      metalness: 0.0,
-      transparent: true,
-      opacity: 0.40,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      // The baked cavity map multiplies in here, so the creases stay dark.
-      vertexColors: true,
-    });
-    const body = new THREE.Mesh(geometry, material);
-    body.scale.setScalar(2.0);
-
-    /* The dust. Scattered over the same surface and additively blended, so it
-       accumulates where the body is thick and feathers away at the edges. */
     const sprite = dustSprite();
-    const dpr = Math.min(window.devicePixelRatio, CAP_DPR);
-
-    const buried = torsoContainment(physique);
 
     const motes = new THREE.Points(
-      surfaceDust(geometry, { count: 44_000, buried }),
+      surfaceDust(geometry, { count: 72_000, lift: 0.002, jitter: 0.012 }),
       dustMaterial(sprite),
     );
-    motes.scale.setScalar(2.0);
-    (motes.material as THREE.ShaderMaterial).uniforms.uPixelRatio.value = dpr;
+    const moteMat = motes.material as THREE.ShaderMaterial;
+    moteMat.uniforms.uPixelRatio.value = dpr;
+    /* Denser and brighter than the default. The star has far less surface than
+       a body but spreads it over a similar silhouette — the points are thin —
+       so the same settings came out as a faint smudge. */
+    moteMat.uniforms.uSize.value = 5.6;
+    moteMat.uniforms.uOpacity.value = 1.15;
+    moteMat.uniforms.uRim.value = 1.1;
 
-    /* A second, looser layer standing further off the skin. This is the halo:
-       sparse, large and faint, it is what makes the silhouette feather away
-       instead of ending, and it catches the light around the shoulders the way
-       the reference does. */
+    /* A looser layer standing further off the surface. This is the halo: it
+       makes the silhouette feather away instead of ending, and it is most of
+       what reads as a glow. */
     const haze = new THREE.Points(
-      surfaceDust(geometry, { count: 9_000, lift: 0.02, jitter: 0.055, buried }),
+      surfaceDust(geometry, { count: 14_000, lift: 0.025, jitter: 0.08 }),
       dustMaterial(sprite),
     );
-    haze.scale.setScalar(2.0);
     const hazeMat = haze.material as THREE.ShaderMaterial;
     hazeMat.uniforms.uPixelRatio.value = dpr;
-    hazeMat.uniforms.uSize.value = 11.0;
-    hazeMat.uniforms.uOpacity.value = 0.16;
+    hazeMat.uniforms.uSize.value = 15.0;
+    hazeMat.uniforms.uOpacity.value = 0.22;
+    hazeMat.uniforms.uRim.value = 0.5;
 
     const group = new THREE.Group();
-    group.add(body);
+    group.scale.setScalar(1.02);
+    // A few degrees off square, so it reads as an object in space rather than
+    // a diagram pinned to the screen.
+    group.rotation.x = 0.06;
     group.add(motes);
     group.add(haze);
-    // A few degrees off square, so the pose reads as a body standing rather
-    // than a diagram pinned to the screen.
-    group.rotation.x = 0.04;
     scene.add(group);
 
-    /* --- light ------------------------------------------------------- */
-    /* Low ambient on purpose. Relief is read from the gradient between lit
-       and unlit, and filling the shadows flattens every muscle back into the
-       surface it was displaced out of. */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.22));
-
-    // Raking across the body rather than square on, so the form casts.
-    const key = new THREE.DirectionalLight(0xffffff, 2.3);
-    key.position.set(1.5, 1.5, 1.0);
-    scene.add(key);
-
-    // The rim is what makes it sculptural. Behind and above, so the edge of
-    // the shoulder and the outside of the arm catch a hard white line.
-    const rim = new THREE.DirectionalLight(0xffffff, 3.4);
-    rim.position.set(-1.6, 0.9, -1.5);
-    scene.add(rim);
-
-    const fill = new THREE.DirectionalLight(0xffffff, 0.42);
-    fill.position.set(-1.2, -0.5, 1.1);
-    scene.add(fill);
-
-    // A dim underlight, so the undersides of the pecs and glutes do not read
-    // as holes cut in the figure.
-    const bounce = new THREE.DirectionalLight(0xffffff, 0.28);
-    bounce.position.set(0, -1.5, 0.6);
-    scene.add(bounce);
-
-    /* --- dust -------------------------------------------------------- */
+    /* --- ambient dust ------------------------------------------------ */
     const COUNT = 420;
-    const dust = new Float32Array(COUNT * 3);
+    const field = new Float32Array(COUNT * 3);
     const drift = new Float32Array(COUNT);
     for (let i = 0; i < COUNT; i++) {
-      // A hollow shell, so nothing sits inside the figure.
-      const r = 2.2 + Math.random() * 5.5;
+      // A hollow shell, so nothing sits inside the star.
+      const r = 2.6 + Math.random() * 6.0;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      dust[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      dust[i * 3 + 1] = r * Math.cos(phi) * 0.7;
-      dust[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      field[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      field[i * 3 + 1] = r * Math.cos(phi) * 0.75;
+      field[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
       drift[i] = 0.1 + Math.random() * 0.9;
     }
-    const dustGeo = new THREE.BufferGeometry();
-    dustGeo.setAttribute("position", new THREE.BufferAttribute(dust, 3));
-    const dustMat = new THREE.PointsMaterial({
+    const fieldGeo = new THREE.BufferGeometry();
+    fieldGeo.setAttribute("position", new THREE.BufferAttribute(field, 3));
+    const fieldMat = new THREE.PointsMaterial({
       color: 0xffffff, size: 0.019, sizeAttenuation: true,
-      transparent: true, opacity: 0.62, depthWrite: false,
+      transparent: true, opacity: 0.6, depthWrite: false,
     });
-    const points = new THREE.Points(dustGeo, dustMat);
-    scene.add(points);
+    const stars = new THREE.Points(fieldGeo, fieldMat);
+    scene.add(stars);
 
     /* --- size -------------------------------------------------------- */
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = mount;
       if (!w || !h) return;
-      /* updateStyle must stay on. With it off the canvas keeps its
-         backing-store size in CSS pixels — at a device ratio of 1.8 that is a
-         1620px canvas inside a 900px window, and the figure ends up somewhere
-         off the bottom right of the screen. */
       renderer.setSize(w, h, true);
       camera.aspect = w / h;
-      /* Frame the figure to the height of the window. A body is tall and thin,
-         so on a narrow screen it is height that runs out first, and the camera
-         has to pull back or the head and feet crop. */
-      const portrait = w / h < 0.8;
-      camera.position.z = portrait ? 5.6 : 4.6;
-      /* On a phone the copy lives in the lower third, so the figure is lifted
-         out of it. On a wide screen there is room either side and it stays
-         centred. */
-      group.position.y = portrait ? 0.42 : 0.1;
+      // On a narrow screen the star needs the camera pulled back or its points
+      // run off the sides.
+      camera.position.z = w / h < 0.8 ? 6.4 : 5.2;
       camera.updateProjectionMatrix();
     };
     resize();
@@ -227,31 +139,30 @@ export function Scene({
 
     /* --- scroll ------------------------------------------------------ */
     let scrollRotation = 0;
-    const onScroll = () => {
-      scrollRotation = window.scrollY * SCROLL_TO_RADIANS;
-    };
+    const onScroll = () => { scrollRotation = window.scrollY * SCROLL_TO_RADIANS; };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
 
     /* --- loop -------------------------------------------------------- */
     let raf = 0;
-    let idle = 0;
     let running = true;
 
     const frame = (t: number) => {
       raf = requestAnimationFrame(frame);
       if (!running) return;
 
-      if (!reduced) idle = Math.sin(t * SWAY_SPEED) * SWAY_RADIANS;
-      group.rotation.y = scrollRotation + idle;
-      points.rotation.y = -(scrollRotation * 0.18) - idle * 0.4;
+      const sway = reduced ? 0 : Math.sin(t * SWAY_SPEED) * SWAY_RADIANS;
+      group.rotation.y = scrollRotation + sway;
+      // A touch of counter-tilt, so it tumbles rather than spinning on a pole.
+      group.rotation.z = reduced ? 0 : Math.sin(t * SWAY_SPEED * 0.6) * 0.05;
+      stars.rotation.y = -(scrollRotation * 0.18) - sway * 0.4;
 
       if (!reduced) {
-        const pos = dustGeo.getAttribute("position") as THREE.BufferAttribute;
+        const pos = fieldGeo.getAttribute("position") as THREE.BufferAttribute;
         for (let i = 0; i < COUNT; i++) {
           // Slow vertical drift, wrapping at the top and bottom of the shell.
           let y = pos.getY(i) + drift[i] * 0.00035;
-          if (y > 4) y = -4;
+          if (y > 4.5) y = -4.5;
           pos.setY(i, y);
         }
         pos.needsUpdate = true;
@@ -261,7 +172,7 @@ export function Scene({
     };
     raf = requestAnimationFrame(frame);
 
-    // A hidden tab should not be burning battery on a body nobody is looking at.
+    // A hidden tab should not burn battery on something nobody is looking at.
     const onVisibility = () => { running = document.visibilityState === "visible"; };
     document.addEventListener("visibilitychange", onVisibility);
 
@@ -271,18 +182,17 @@ export function Scene({
       document.removeEventListener("visibilitychange", onVisibility);
       ro.disconnect();
       geometry.dispose();
-      material.dispose();
       motes.geometry.dispose();
-      (motes.material as THREE.ShaderMaterial).dispose();
+      moteMat.dispose();
       haze.geometry.dispose();
       hazeMat.dispose();
+      fieldGeo.dispose();
+      fieldMat.dispose();
       sprite.dispose();
-      dustGeo.dispose();
-      dustMat.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
-  }, [physique]);
+  }, []);
 
   return <div ref={host} aria-hidden className={className} />;
 }

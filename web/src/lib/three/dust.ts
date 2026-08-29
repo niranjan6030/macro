@@ -68,6 +68,7 @@ export function surfaceDust(
   }
 
   const points = new Float32Array(count * 3);
+  const normals = new Float32Array(count * 3);
   const shades = new Float32Array(count);
   const sizes = new Float32Array(count);
 
@@ -119,6 +120,14 @@ export function surfaceDust(
     points[p * 3 + 1] = py;
     points[p * 3 + 2] = pz;
 
+    /* The surface normal travels with the mote. The shader uses it for a
+       fresnel term: where the surface turns away from the camera the motes
+       are seen edge-on, and that is the bright rim the reference has around
+       its silhouette. Without it the cloud is uniformly lit and reads flat. */
+    normals[p * 3] = normal.x;
+    normals[p * 3 + 1] = normal.y;
+    normals[p * 3 + 2] = normal.z;
+
     /* Carry the baked cavity shading through, so the dust is darker in the
        creases too — otherwise the cloud flattens all the anatomy the relief
        pass just spent its time creating. */
@@ -135,6 +144,7 @@ export function surfaceDust(
   const g = new THREE.BufferGeometry();
   // Trimmed to what was actually written, or the unused tail draws at the origin.
   g.setAttribute("position", new THREE.BufferAttribute(points.subarray(0, written * 3), 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(normals.subarray(0, written * 3), 3));
   g.setAttribute("shade", new THREE.BufferAttribute(shades.subarray(0, written), 1));
   g.setAttribute("scale", new THREE.BufferAttribute(sizes.subarray(0, written), 1));
   return g;
@@ -179,17 +189,33 @@ export function dustMaterial(sprite: THREE.Texture): THREE.ShaderMaterial {
       uOpacity: { value: 0.78 },
       uColor: { value: new THREE.Color(0xffffff) },
       uPixelRatio: { value: 1 },
+      /* How much the silhouette is favoured over the face-on surface. 0 is a
+         flat cloud; 1 is nearly an outline. */
+      uRim: { value: 0.85 },
     },
     vertexShader: /* glsl */ `
       attribute float shade;
       attribute float scale;
       uniform float uSize;
       uniform float uPixelRatio;
+      uniform float uRim;
       varying float vShade;
+      varying float vRim;
 
       void main() {
         vShade = shade;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
+
+        /* Fresnel. A normal pointing at the camera gives 0; one perpendicular
+           to the view gives 1, which is the silhouette. Squared, so the
+           brightening stays tight to the edge instead of washing over the
+           whole shape. */
+        vec3 n = normalize(normalMatrix * normal);
+        vec3 toEye = normalize(-mv.xyz);
+        float facing = abs(dot(n, toEye));
+        float rim = pow(1.0 - facing, 2.0);
+        vRim = 1.0 + uRim * rim;
+
         // Perspective size, so motes at the back are smaller and the cloud
         // reads as having depth rather than being a flat sticker.
         gl_PointSize = uSize * scale * uPixelRatio * (1.0 / -mv.z);
@@ -201,6 +227,7 @@ export function dustMaterial(sprite: THREE.Texture): THREE.ShaderMaterial {
       uniform float uOpacity;
       uniform vec3 uColor;
       varying float vShade;
+      varying float vRim;
 
       void main() {
         vec4 sprite = texture2D(uMap, gl_PointCoord);
@@ -209,7 +236,7 @@ export function dustMaterial(sprite: THREE.Texture): THREE.ShaderMaterial {
            of the alpha as well, the creases stopped being dark and simply
            became gaps, and the cloud tore open along every groove. */
         float a = sprite.a * uOpacity * (0.55 + 0.45 * vShade);
-        gl_FragColor = vec4(uColor * (0.35 + 0.65 * vShade), a);
+        gl_FragColor = vec4(uColor * (0.35 + 0.65 * vShade) * vRim, a);
       }
     `,
     transparent: true,
