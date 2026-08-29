@@ -19,11 +19,19 @@ type Handler = (uid: string, req: Request) => Promise<Response>;
  */
 export function withUser(handler: Handler) {
   return async (req: Request): Promise<Response> => {
+    /* Identity first, infrastructure second.
+     *
+     * These were the other way round, so an unauthenticated request to a
+     * protected route came back "the database is not configured" — telling a
+     * stranger about the state of the deployment before establishing they had
+     * any business asking. Whether the database is up is not a fact a signed
+     * out caller is entitled to. */
+    const auth = await requireUser();
+    if ("response" in auth) return auth.response;
+
     if (!dbConfigured()) {
       return fail("The database is not configured on this deployment.", 503);
     }
-    const auth = await requireUser();
-    if ("response" in auth) return auth.response;
 
     try {
       return await handler(auth.user.uid, req);

@@ -111,6 +111,10 @@ from your logged data first, and the model's only job is to write it up.
 
 ## Getting it running
 
+Full setup for Firebase and Supabase is in [SETUP.md](SETUP.md), and
+`cd web && npm run doctor` checks every key by using it.
+
+
 You need Node 20+.
 
 ```bash
