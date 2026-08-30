@@ -28,11 +28,17 @@ then under *Sign-in method* enable:
 |---|---|
 | Email/Password | Nothing. Enable it. |
 | Google | Nothing — pick a support email. |
-| Apple | An Apple Developer account (£79/yr). Skip unless you want iOS. |
-| Phone | Nothing to start. Free tier covers ~10 SMS/day. |
+| Apple | An Apple Developer account (£79/yr), a Services ID and a signing key. |
 
 Enable at least **Email/Password** and **Google**; the app offers whichever are
 on and the others simply fail with a clear message.
+
+Phone sign-in was removed. It was the only method that cost money per attempt,
+the only one requiring an invisible reCAPTCHA anchored to a button elsewhere on
+the page, and it put an SMS provider in the middle of the one flow that must
+not break. Leave it **disabled** in the console as well as absent from the UI —
+an enabled provider with no button in front of it is still reachable through
+the API, and the bill for that is real.
 
 **Get the web config.** *Project settings → General → Your apps → Web app*
 (click `</>` if there isn't one). Copy the six values into `web/.env.local`:

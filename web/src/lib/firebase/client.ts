@@ -85,9 +85,6 @@ export function friendlyAuthError(code: string): string {
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request": return "";      // they changed their mind; say nothing
     case "auth/popup-blocked": return "Your browser blocked the sign-in window. Allow pop-ups and try again.";
-    case "auth/invalid-phone-number": return "Enter a phone number including the country code, like +91 98765 43210.";
-    case "auth/invalid-verification-code": return "That code is not right. Check it and try again.";
-    case "auth/code-expired": return "That code has expired. Send a new one.";
     case "auth/too-many-requests": return "Too many attempts. Wait a few minutes and try again.";
     case "auth/network-request-failed":
       // In development the overwhelmingly likely cause is the emulator not
