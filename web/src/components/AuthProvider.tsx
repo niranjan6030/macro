@@ -1,16 +1,13 @@
 "use client";
 
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from "react";
 import {
-  type ConfirmationResult,
   type User,
-  RecaptchaVerifier,
   createUserWithEmailAndPassword,
   onIdTokenChanged,
   signInWithEmailAndPassword,
-  signInWithPhoneNumber,
   signInWithPopup,
   signOut as fbSignOut,
   updateProfile,
@@ -28,7 +25,6 @@ interface AuthValue {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   createAccount: (email: string, password: string, name?: string) => Promise<void>;
   /** Sends the OTP. Returns a confirm function to call with the code. */
-  startPhoneSignIn: (phone: string, buttonId: string) => Promise<(code: string) => Promise<void>>;
   /** Resolves once the server session cookie exists. Await before navigating. */
   ensureSession: () => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -63,7 +59,6 @@ const LOCAL_USER = {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(firebaseConfigured ? null : LOCAL_USER);
   const [ready, setReady] = useState(!firebaseConfigured);
-  const recaptcha = useRef<RecaptchaVerifier | null>(null);
 
   /* Keep the httpOnly server session in step with the client's token.
      onIdTokenChanged fires on sign-in, sign-out and hourly refreshes, so
@@ -145,28 +140,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { wrap(e); }
   }, []);
 
-  const startPhoneSignIn = useCallback(async (phone: string, buttonId: string) => {
-    const auth = needAuth();
-    try {
-      // Invisible reCAPTCHA is required by Firebase for phone auth. It is
-      // reused across attempts; recreating it throws.
-      recaptcha.current ??= new RecaptchaVerifier(auth, buttonId, { size: "invisible" });
-
-      const confirmation: ConfirmationResult =
-        await signInWithPhoneNumber(auth, phone, recaptcha.current);
-
-      return async (code: string) => {
-        try { await confirmation.confirm(code); } catch (e) { wrap(e); }
-      };
-    } catch (e) {
-      // A failed attempt leaves the widget in a bad state; drop it so the
-      // next try starts clean.
-      recaptcha.current?.clear();
-      recaptcha.current = null;
-      wrap(e);
-    }
-  }, []);
-
   const signOut = useCallback(async () => {
     if (!firebaseConfigured) {
       // Nothing to sign out of; clearing the local diary is a separate,
@@ -183,9 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     configured: firebaseConfigured,
     ready, user,
     signInWithGoogle, signInWithApple, signInWithEmail,
-    createAccount, startPhoneSignIn, ensureSession, signOut,
+    createAccount, ensureSession, signOut,
   }), [ready, user, signInWithGoogle, signInWithApple, signInWithEmail,
-       createAccount, startPhoneSignIn, ensureSession, signOut]);
+       createAccount, ensureSession, signOut]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

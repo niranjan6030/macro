@@ -2,24 +2,24 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Phone, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { AuthError, useAuth } from "@/components/AuthProvider";
 
 /**
- * Sign in with Google, Apple, email or phone.
+ * Sign in with Google, Apple or email.
  *
- * Apple is behind a flag because it cannot be switched on the way the others
- * can: it needs a paid Apple Developer membership, a Services ID and a signing
- * key, and until those exist the button can only fail. Offering a sign-in
- * method that always errors is worse than not offering it, so it appears only
- * once NEXT_PUBLIC_APPLE_SIGN_IN is set.
+ * Three, not one, because the app follows someone for months — losing a year
+ * of training history because you cannot remember which button you pressed
+ * the first time is the worst failure available here.
  *
- * All four are offered because the app follows someone for months — losing
- * access to a year of training history because you cannot remember which
- * button you pressed the first time is the worst possible failure here.
+ * Phone used to be the fourth. It is gone: it was the only method that cost
+ * money per attempt, the only one needing an invisible reCAPTCHA wired to a
+ * button elsewhere on the page, and the SMS provider is a third party in the
+ * middle of the one flow that must not break. Anyone who signed in that way
+ * still exists; they sign in with email against the same account.
  */
 
-type Mode = "choose" | "email" | "phone";
+type Mode = "choose" | "email";
 
 /**
  * The real marks, not lookalikes.
@@ -48,12 +48,9 @@ function AppleMark() {
   );
 }
 
-/** Apple sign-in needs paid Apple Developer setup that no env var can fake. */
-const APPLE_READY = process.env.NEXT_PUBLIC_APPLE_SIGN_IN === "1";
-
 export function SignIn() {
   const { signInWithGoogle, signInWithApple, signInWithEmail, createAccount,
-          startPhoneSignIn, ensureSession, configured } = useAuth();
+          ensureSession, configured } = useAuth();
   const router = useRouter();
   const next = useSearchParams().get("next") ?? "/";
 
@@ -66,9 +63,6 @@ export function SignIn() {
   const [name, setName] = useState("");
   const [isNew, setIsNew] = useState(false);
 
-  const [phone, setPhone] = useState("+91");
-  const [code, setCode] = useState("");
-  const [confirm, setConfirm] = useState<((c: string) => Promise<void>) | null>(null);
 
   if (!configured) {
     return (
@@ -108,7 +102,6 @@ export function SignIn() {
       {mode === "choose" && (
         <div className="space-y-2.5">
           <button
-            id="phone-recaptcha"
             onClick={() => run("google", signInWithGoogle)}
             disabled={busy !== null}
             className="btn btn-ghost w-full"
@@ -116,18 +109,13 @@ export function SignIn() {
             {busy === "google" ? <Loader2 className="animate-spin" size={18} /> : <GoogleMark />}
             Continue with Google
           </button>
-          {APPLE_READY && (
-            <button onClick={() => run("apple", signInWithApple)} disabled={busy !== null}
-                    className="btn btn-ghost w-full">
-              {busy === "apple" ? <Loader2 className="animate-spin" size={18} /> : <AppleMark />}
-              Continue with Apple
-            </button>
-          )}
+          <button onClick={() => run("apple", signInWithApple)} disabled={busy !== null}
+                  className="btn btn-ghost w-full">
+            {busy === "apple" ? <Loader2 className="animate-spin" size={18} /> : <AppleMark />}
+            Continue with Apple
+          </button>
           <button onClick={() => setMode("email")} className="btn btn-ghost w-full">
             <Mail size={18} /> Continue with email
-          </button>
-          <button onClick={() => setMode("phone")} className="btn btn-ghost w-full">
-            <Phone size={18} /> Continue with phone
           </button>
         </div>
       )}
@@ -170,50 +158,6 @@ export function SignIn() {
         </form>
       )}
 
-      {mode === "phone" && (
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!confirm) {
-              // Firebase attaches its invisible reCAPTCHA to this button.
-              run("phone", async () => {
-                const verify = await startPhoneSignIn(phone, "send-otp");
-                // Stored behind a thunk: setState calls a bare function argument.
-                setConfirm(() => verify);
-              });
-            } else {
-              run("otp", () => confirm(code));
-            }
-          }}
-        >
-          <div>
-            <label className="label" htmlFor="phone">Phone number</label>
-            <input id="phone" type="tel" required className="field num" value={phone}
-                   onChange={(e) => setPhone(e.target.value)} autoComplete="tel"
-                   placeholder="+91 98765 43210" disabled={confirm !== null} />
-            <p className="mt-1.5 text-xs text-[var(--color-mute)]">Include the country code.</p>
-          </div>
-
-          {confirm && (
-            <div>
-              <label className="label" htmlFor="otp">Six-digit code</label>
-              <input id="otp" inputMode="numeric" required className="field num tracking-[0.4em]"
-                     value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                     autoComplete="one-time-code" />
-            </div>
-          )}
-
-          <button id="send-otp" type="submit" disabled={busy !== null} className="btn btn-primary w-full">
-            {busy ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}
-            {confirm ? "Verify" : "Send code"}
-          </button>
-          <button type="button" onClick={() => { setMode("choose"); setConfirm(null); setError(""); }}
-                  className="w-full text-sm text-[var(--color-mute)]">
-            Back
-          </button>
-        </form>
-      )}
     </div>
   );
 }

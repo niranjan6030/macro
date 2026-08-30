@@ -141,8 +141,8 @@ cp .env.example .env.local     # when you are ready to connect the backend
 
 Create a project at [console.firebase.google.com](https://console.firebase.google.com).
 
-1. **Authentication → Sign-in method** — enable Google, Apple, Email/Password
-   and Phone. Each one you skip simply does not appear.
+1. **Authentication → Sign-in method** — enable Google, Apple and
+   Email/Password. Each one you skip simply does not appear.
 2. **Project settings → General → Your apps → Web** — copy the config into the
    six `NEXT_PUBLIC_FIREBASE_*` values.
 3. **Project settings → Service accounts → Generate new private key** — paste
