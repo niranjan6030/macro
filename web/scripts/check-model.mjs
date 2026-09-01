@@ -191,7 +191,7 @@ check("the week has the right number of training days", () => {
 
 console.log("\nCalendar dates");
 
-/* Mirrors lib/client.ts. A day is a label, not an instant, and every step has
+/* Mirrors lib/client.js. A day is a label, not an instant, and every step has
    to be timezone-independent — the bug this guards against made the "next
    day" arrow do nothing in India and the "previous day" arrow skip two. */
 const shiftDate = (iso, days) =>

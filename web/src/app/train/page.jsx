@@ -1,0 +1,369 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Check, Bed, Plus, TrendingUp, Info, ListPlus, X } from "lucide-react";
+import { get, post, put, standalone, today } from "@/lib/client";
+import { useResource } from "@/lib/useResource";
+import { tapFeedback } from "@/lib/native";
+
+import { TrainPicker } from "@/components/TrainPicker";
+import { nextPrescription } from "@/lib/fitness/training";
+
+import { useBody } from "@/lib/bodyStore";
+
+/**
+ * Today's session.
+ *
+ * The prescription is not a template — each exercise carries what was lifted
+ * last time and what to do about it, worked out by the progression engine.
+ * That is the difference between a workout log and a programme.
+ */
+export default function TrainPage() {
+  const date = today();
+  const [workoutId, setWorkoutId] = useState(null);
+
+  /* Anything added by hand, on top of what the programme prescribed. Kept in
+     component state rather than refetched: the plan is what you were told to
+     do, and this is what you actually did. */
+  const [extra, setExtra] = useState([]);
+  const [picking, setPicking] = useState(false);
+  const [logged, setLogged] = useState([]);
+
+  /* Calorie cost scales directly with bodyweight, so a hard-coded figure
+     would be wrong for everyone but one person.
+     
+     The home screen publishes the real weight into the body store, but landing
+     straight on this tab — from the tab bar, or from the app's own shortcut —
+     means it has never run, and the burn came out computed against a fallback.
+     So this fetches it as well, and takes whichever arrives first. */
+  const fromStore = useBody((b) => b.composition?.weightKg);
+  const [fetchedWeight, setFetchedWeight] = useState(null);
+  const setComposition = useBody((b) => b.setComposition);
+
+  useEffect(() => {
+    if (fromStore != null) return;
+    let live = true;
+    get("/api/profile")
+      .then((p) => {
+        if (!live) return;
+        if (p.weightKg != null) setFetchedWeight(p.weightKg);
+        if (p.complete && p.targets && p.profile?.sex && p.profile.height_cm && p.weightKg) {
+          setComposition({
+            sex: p.profile.sex,
+            heightCm: Number(p.profile.height_cm),
+            weightKg: p.weightKg,
+            bodyFatPct: p.targets.bodyFatPct,
+            leanKg: p.targets.leanKg,
+          });
+        }
+      })
+      .catch(() => {
+        /* the fallback below covers it */
+      });
+    return () => {
+      live = false;
+    };
+  }, [fromStore, setComposition]);
+
+  const bodyWeight = fromStore ?? fetchedWeight ?? 75;
+
+  const fetcher = useCallback(() => get(`/api/plan?date=${date}`), [date]);
+  const { data: plan, loading, error, reload, setError } = useResource(fetcher);
+
+  // The session row is created lazily, on the first set logged — so opening
+  // the tab and walking away does not leave an empty workout in the history.
+  const ensureWorkout = useCallback(async () => {
+    if (workoutId) return workoutId;
+    /* Standalone has nowhere to persist a session, so sets stay on the page
+       for the day. Saying so beats a 503 the moment someone logs their first
+       set of the first exercise they try. */
+    if (standalone()) {
+      setWorkoutId("local");
+      return "local";
+    }
+    const { workout } = await post("/api/workouts", {
+      date,
+      name: plan?.session?.name ?? "Session",
+      split: plan?.split,
+    });
+    setWorkoutId(workout.id);
+    return workout.id;
+  }, [workoutId, date, plan]);
+
+  if (loading) {
+    return (
+      <div className="grid h-[70vh] place-items-center">
+        <Loader2 className="animate-spin text-[var(--color-mute)]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 py-6">
+      <header>
+        <p className="label mb-1">{plan?.splitLabel}</p>
+        <h1 className="display text-3xl">
+          {plan?.restDay ? "Rest day" : (plan?.session?.name ?? "Training")}
+        </h1>
+      </header>
+
+      {picking && (
+        <section className="card p-4">
+          <TrainPicker
+            weightKg={bodyWeight}
+            onClose={() => setPicking(false)}
+            onPickExercise={(ex) => {
+              setExtra((list) =>
+                list.some((e) => e.id === ex.id)
+                  ? list
+                  : [...list, { ...ex, last: null, prescription: nextPrescription(ex, null) }],
+              );
+              setPicking(false);
+            }}
+            onLogActivity={async (a, minutes, kcal) => {
+              setLogged((l) => [...l, { name: a.name, minutes, kcal }]);
+              setPicking(false);
+            }}
+          />
+        </section>
+      )}
+
+      {error && (
+        <p role="alert" className="card p-4 text-sm text-[var(--color-bad)]">
+          {error}
+        </p>
+      )}
+
+      {plan?.restDay && (
+        <div className="card space-y-4 p-6 text-center">
+          <Bed size={32} className="mx-auto text-[var(--color-volt)]" />
+          <p className="text-sm leading-relaxed text-[var(--color-mute)]">{plan.reason}</p>
+          <button
+            onClick={async () => {
+              await put("/api/day", { date, rest_day: false });
+              reload();
+            }}
+            className="btn btn-ghost w-full"
+          >
+            Train anyway
+          </button>
+        </div>
+      )}
+
+      {!picking &&
+        !plan?.restDay &&
+        [...(plan?.exercises ?? []), ...extra].map((ex) => (
+          <ExerciseCard key={ex.id} ex={ex} ensureWorkout={ensureWorkout} onError={setError} />
+        ))}
+
+      {!picking && logged.length > 0 && (
+        <section className="card p-4">
+          <h2 className="label">Also today</h2>
+          <ul className="divide-y divide-[var(--color-line)]">
+            {logged.map((l, i) => (
+              <li key={i} className="flex items-center justify-between py-2.5 text-sm">
+                <span>{l.name}</span>
+                <span className="num text-xs text-[var(--color-mute)]">
+                  {l.minutes} min · {l.kcal} kcal
+                </span>
+                <button
+                  aria-label={`Remove ${l.name}`}
+                  onClick={() => setLogged((all) => all.filter((_, j) => j !== i))}
+                  className="ml-3 text-[var(--color-mute)]"
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {!picking && (
+        <button onClick={() => setPicking(true)} className="btn btn-ghost w-full">
+          <ListPlus size={17} /> Add anything else
+        </button>
+      )}
+
+      {!plan?.restDay && (
+        <button
+          onClick={async () => {
+            await put("/api/day", { date, rest_day: true });
+            reload();
+          }}
+          className="btn btn-ghost w-full"
+        >
+          <Bed size={17} /> Make today a rest day
+        </button>
+      )}
+
+      {plan?.week && (
+        <section className="card p-4">
+          <h2 className="label">Your week</h2>
+          <ul className="space-y-1.5 text-sm">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => (
+              <li key={d} className="flex justify-between">
+                <span className="text-[var(--color-mute)]">{d}</span>
+                <span className={plan.week[i] ? "font-medium" : "text-[var(--color-mute)]"}>
+                  {plan.week[i] ?? "Rest"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {plan?.weeklyVolume && Object.keys(plan.weeklyVolume).length > 0 && (
+        <section className="card p-4">
+          <h2 className="label">Weekly sets per muscle</h2>
+          <ul className="space-y-1.5">
+            {Object.entries(plan.weeklyVolume)
+              .sort((a, b) => b[1] - a[1])
+              .map(([muscle, sets]) => (
+                <li key={muscle} className="flex items-center gap-3 text-sm">
+                  <span className="w-20 shrink-0 capitalize text-[var(--color-mute)]">
+                    {muscle}
+                  </span>
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--color-line)]">
+                    <span
+                      className="block h-full rounded-full"
+                      style={{
+                        width: `${Math.min(sets / 22, 1) * 100}%`,
+                        background: sets >= 10 ? "var(--color-volt)" : "var(--color-warn)",
+                      }}
+                    />
+                  </span>
+                  <span className="num w-6 text-right text-xs">{sets}</span>
+                </li>
+              ))}
+          </ul>
+          <p className="mt-3 flex gap-1.5 text-xs leading-relaxed text-[var(--color-mute)]">
+            <Info size={13} className="mt-px shrink-0" />
+            Ten hard sets a week is roughly where a muscle starts growing; past twenty is usually
+            more than you can recover from.
+          </p>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ExerciseCard({ ex, ensureWorkout, onError }) {
+  const p = ex.prescription;
+  const [weight, setWeight] = useState(p.weightKg != null ? String(p.weightKg) : "");
+  const [reps, setReps] = useState(String(p.reps));
+  const [rir, setRir] = useState("2");
+  const [logged, setLogged] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [next, setNext] = useState(null);
+
+  const target = p.sets;
+
+  return (
+    <section className="card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{ex.name}</h2>
+          <p className="text-xs capitalize text-[var(--color-mute)]">
+            {ex.primary} · {ex.equipment} · {ex.repRange[0]}–{ex.repRange[1]} reps
+          </p>
+        </div>
+        <span className="num shrink-0 text-sm text-[var(--color-mute)]">
+          {logged.length}/{target}
+        </span>
+      </div>
+
+      <p className="mt-2.5 flex gap-1.5 rounded-lg bg-[var(--color-slab-2)] p-2.5 text-xs leading-relaxed text-[var(--color-mute)]">
+        <TrendingUp size={13} className="mt-px shrink-0 text-[var(--color-volt)]" />
+        {next ?? p.reason}
+      </p>
+
+      {ex.last && (
+        <p className="num mt-2 text-xs text-[var(--color-mute)]">
+          Last time: {ex.last.map((s) => `${s.weightKg}×${s.reps}`).join("  ")}
+        </p>
+      )}
+
+      {logged.length > 0 && (
+        <ul className="num mt-2 flex flex-wrap gap-1.5">
+          {logged.map((s, i) => (
+            <li
+              key={i}
+              className="chip"
+              style={{ color: "var(--color-volt)", borderColor: "var(--color-volt-dim)" }}
+            >
+              <Check size={11} /> {s.weightKg} × {s.reps}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        className="mt-3 flex items-end gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            const id = await ensureWorkout();
+            if (id !== "local") {
+              const res = await post(`/api/workouts/${id}/sets`, {
+                exercise_id: ex.id,
+                weight_kg: Number(weight) || 0,
+                reps: Number(reps) || 0,
+                rir: rir === "" ? null : Number(rir),
+              });
+              setNext(res.next?.reason ?? null);
+            }
+            setLogged((l) => [...l, { weightKg: Number(weight) || 0, reps: Number(reps) || 0 }]);
+            await tapFeedback("medium");
+          } catch (e2) {
+            onError(e2 instanceof Error ? e2.message : "Could not save that set.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label className="flex-1">
+          <span className="label">kg</span>
+          <input
+            inputMode="decimal"
+            className="field num"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="—"
+          />
+        </label>
+        <label className="flex-1">
+          <span className="label">reps</span>
+          <input
+            inputMode="numeric"
+            className="field num"
+            value={reps}
+            onChange={(e) => setReps(e.target.value)}
+          />
+        </label>
+        <label className="w-16">
+          <span className="label" title="Reps in reserve">
+            RIR
+          </span>
+          <input
+            inputMode="numeric"
+            className="field num"
+            value={rir}
+            onChange={(e) => setRir(e.target.value)}
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="btn btn-primary px-4"
+          aria-label={`Log a set of ${ex.name}`}
+        >
+          {busy ? <Loader2 className="animate-spin" size={16} /> : <Plus size={18} />}
+        </button>
+      </form>
+
+      <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-mute)]">{ex.cue}</p>
+    </section>
+  );
+}
