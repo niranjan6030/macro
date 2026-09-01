@@ -236,7 +236,7 @@ of the Indian table are checked against their own Atwater arithmetic.
 
 ```bash
 npm run lint      # ESLint, including the React compiler rules
-npx tsc --noEmit  # types
+npm run check     # the 42 domain checks above
 npm run build     # production build
 ```
 
@@ -266,23 +266,23 @@ want to put it in a store — `npm run sync:ios`, `npm run sync:android`, with
 ```
 supabase/schema.sql        Postgres schema, commented
 web/src/lib/
-  fitness/energy.ts        BMR, TDEE, macro targets
-  fitness/projection.ts    week-by-week bodyweight simulation
-  fitness/training.ts      exercise library, splits, progression
-  fitness/physique.ts      composition -> the six builds
-  three/star.ts            the astroid star
-  three/dust.ts            scattering a surface into points
-  nutrition/types.ts       the canonical per-100 g shape, and plausibility
-  nutrition/indian.ts      Indian staples as eaten
-  nutrition/openfoodfacts.ts, usda.ts, search.ts
-  ai/identify.ts           photo → foods + portions (never calories)
-  ai/coach.ts              findings computed in code, written up by the model
-  db.ts                    every read and write, scoped by uid
+  fitness/energy.js        BMR, TDEE, macro targets
+  fitness/projection.js    week-by-week bodyweight simulation
+  fitness/training.js      exercise library, splits, progression
+  fitness/physique.js      composition -> the six builds
+  three/star.js            the astroid star
+  three/dust.js            scattering a surface into points
+  nutrition/types.js       the canonical per-100 g shape, and plausibility
+  nutrition/indian.js      Indian staples as eaten
+  nutrition/openfoodfacts.js, usda.js, search.js
+  ai/identify.js           photo → foods + portions (never calories)
+  ai/coach.js              findings computed in code, written up by the model
+  db.js                    every read and write, scoped by uid
 web/src/components/
-  Scene.tsx                the star, scroll-driven rotation, drifting dust
-  Cosmos.tsx               grain and the corner frame
-  Landing.tsx              the signed-out screen
-  ScrollStory.tsx          the day, told as you scroll
+  Scene.jsx                the star, scroll-driven rotation, drifting dust
+  Cosmos.jsx               grain and the corner frame
+  Landing.jsx              the signed-out screen
+  ScrollStory.jsx          the day, told as you scroll
 web/src/app/api/           route handlers; each verifies the session first
 web/src/app/               Today, Food, Train, Progress, Coach, onboarding
 ```
