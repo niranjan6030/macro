@@ -16,7 +16,8 @@
     "check:schema": "node scripts/check-schema.mjs",
     "doctor": "node scripts/doctor.mjs",
     "check:migration": "node scripts/check-migration.mjs",
-    "ship": "node scripts/ship.mjs"
+    "ship": "node scripts/ship.mjs",
+    "check:live": "node scripts/check-live.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
