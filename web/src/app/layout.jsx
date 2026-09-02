@@ -1,6 +1,7 @@
 import { Open_Sans } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { TabBar } from "@/components/TabBar";
+import { RequireProfile } from "@/components/RequireProfile";
 import { Frame, Grain } from "@/components/Cosmos";
 import { ServiceWorker } from "@/components/InstallApp";
 import { Scene } from "@/components/Scene";
@@ -60,7 +61,9 @@ export default function RootLayout({ children }) {
         <Frame />
         <ServiceWorker />
         <AuthProvider>
-          <main className="safe-top mx-auto w-full max-w-lg px-4">{children}</main>
+          <RequireProfile>
+            <main className="safe-top mx-auto w-full max-w-lg px-4">{children}</main>
+          </RequireProfile>
           <TabBar />
         </AuthProvider>
       </body>

@@ -2,7 +2,7 @@ import "server-only";
 import { getAdminSupabase } from "@/lib/supabase/server";
 import { EMPTY, sum } from "@/lib/nutrition/types";
 import {} from "@/lib/fitness/energy";
-import {} from "@/lib/fitness/training";
+import { byId as byIdBuiltIn } from "@/lib/fitness/training";
 
 /**
  * Every read and write, scoped by uid.
@@ -566,6 +566,24 @@ export async function addCustomExercise(uid, fields) {
   // turns a null into a readable message rather than a 500.
   if (error || !data) return null;
   return asExercise(data);
+}
+
+/**
+ * One exercise by id, built-in or your own.
+ *
+ * The `custom:` prefix is the whole difference. Anything logging a set has
+ * to come through here rather than the library's `byId`, which knows only
+ * the sixty-five that ship with the app and answers null for everything a
+ * person added themselves.
+ */
+export async function findExercise(uid, id) {
+  if (!id.startsWith("custom:")) return byIdBuiltIn(id);
+
+  const { data } = await db()
+    .from("custom_exercises")
+    .select("id, name, primary_muscle, equipment, rep_low, rep_high, note")
+    .eq("uid", uid).eq("id", id.slice("custom:".length)).maybeSingle();
+  return data ? asExercise(data) : null;
 }
 
 export async function deleteCustomExercise(uid, id) {

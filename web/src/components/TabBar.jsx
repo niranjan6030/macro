@@ -27,6 +27,12 @@ export function TabBar() {
   // Nothing to navigate to until they are in.
   if (ready && !user && path === "/account") return null;
 
+  /* Setup is a single flow, not a place with exits. Leaving the bar up
+     during it invites a tap on Food or Train, which lands someone in an app
+     that has no idea how old they are and cannot compute a single target
+     for them. */
+  if (path === "/onboarding") return null;
+
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-line)]

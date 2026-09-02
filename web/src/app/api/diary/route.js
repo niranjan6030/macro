@@ -51,8 +51,13 @@ export const POST = withUser(async (uid, req) => {
     if (!plausible(per100g)) {
       return fail("Those numbers do not add up — check the panel and try again.");
     }
-    confidence = "label";
-    source = source === "photo" ? "photo" : "custom";
+    /* Where the numbers came from decides how they are labelled, and this
+       is the one place that decision is made. Copying a panel off a wrapper
+       is "label"; a recipe the model guessed the ingredients for is not, and
+       showing it as "From the packet" would be the app telling exactly the
+       lie it exists to avoid. */
+    source = source === "photo" ? "photo" : source === "estimate" ? "estimate" : "custom";
+    confidence = source === "custom" ? "label" : "estimated";
   }
 
   if (!per100g) return fail("Choose a food, or enter its nutrition panel.");

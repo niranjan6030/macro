@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/firebase/admin";
-import { addSet, deleteSet, getWorkout, lastSetsFor } from "@/lib/db";
-import { byId, e1rm, nextPrescription } from "@/lib/fitness/training";
+import { addSet, deleteSet, findExercise, getWorkout, lastSetsFor } from "@/lib/db";
+import { e1rm, nextPrescription } from "@/lib/fitness/training";
 
 /**
  * Log one set.
@@ -19,12 +19,31 @@ export async function POST(req, ctx) {
   const b = await req.json().catch(() => ({}));
 
   const exerciseId = typeof b.exercise_id === "string" ? b.exercise_id : "";
-  const ex = byId(exerciseId);
+  // Resolves your own movements too, not just the built-in library.
+  const ex = await findExercise(uid, exerciseId);
   if (!ex) return NextResponse.json({ error: "Unknown exercise." }, { status: 400 });
 
   const reps = clampInt(b.reps, 0, 500);
-  const weight = clampNum(b.weight_kg, 0, 1000);
   if (reps == null) return NextResponse.json({ error: "How many reps?" }, { status: 400 });
+
+  /* Absent and invalid are not the same thing. A missing weight is a
+     bodyweight set and means zero; a weight of -60 is a typo, and quietly
+     recording it as a 0 kg set writes a lie into the training history that
+     nothing downstream can tell from a real one. */
+  const weight = b.weight_kg == null || b.weight_kg === ""
+    ? 0
+    : clampNum(b.weight_kg, 0, 1000);
+  if (weight == null) {
+    return NextResponse.json(
+      { error: "Weight has to be between 0 and 1000 kg." }, { status: 400 },
+    );
+  }
+
+  for (const [field, value, hi] of [["rir", b.rir, 10], ["seconds", b.seconds, 3600]]) {
+    if (value != null && value !== "" && clampInt(value, 0, hi) == null) {
+      return NextResponse.json({ error: `That ${field} is not a number I can use.` }, { status: 400 });
+    }
+  }
 
   const workout = await getWorkout(uid, workoutId);
   if (!workout) return NextResponse.json({ error: "No such session." }, { status: 404 });
@@ -38,7 +57,7 @@ export async function POST(req, ctx) {
       exercise_id: exerciseId,
       exercise_name: ex.name,
       set_index: existing.length + 1,
-      weight_kg: weight ?? 0,
+      weight_kg: weight,
       reps,
       rir: clampInt(b.rir, 0, 10),
       seconds: clampInt(b.seconds, 0, 3600),
@@ -47,7 +66,7 @@ export async function POST(req, ctx) {
 
     return NextResponse.json({
       set,
-      e1rm: e1rm(weight ?? 0, reps) || null,
+      e1rm: e1rm(weight, reps) || null,
       // What to aim for next session, updated the moment the set lands.
       next: nextPrescription(ex, await lastSetsFor(uid, exerciseId)),
     });
