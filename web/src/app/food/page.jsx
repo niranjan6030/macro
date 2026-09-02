@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import { Portion } from "@/components/Portion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, Search, Loader2, Check, ArrowLeft, Info, ScanLine, Sparkles } from "lucide-react";
 import { get, post, today } from "@/lib/client";
@@ -252,20 +253,13 @@ function IdentifiedCard({ item, date, onError, onSaved }) {
         </p>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          inputMode="decimal"
-          value={grams}
-          onChange={(e) => setGrams(Math.max(0, Number(e.target.value) || 0))}
-          className="field num w-24"
-          aria-label={`Grams of ${item.label}`}
+      <div className="mt-3">
+        <Portion
+          food={item.food}
+          grams={grams}
+          onGrams={setGrams}
+          label={`Grams of ${item.label}`}
         />
-        <span className="text-sm text-[var(--color-mute)]">grams</span>
-        {item.food.servingG && (
-          <button onClick={() => setGrams(item.food.servingG)} className="chip ml-auto">
-            {item.food.servingLabel ?? "1 serving"} = {item.food.servingG} g
-          </button>
-        )}
       </div>
 
       {shown && (
@@ -484,29 +478,8 @@ function PortionPicker({ food, date, onError, onSaved, onBack }) {
           <Provenance food={food} />
         </div>
 
-        <label className="label mt-4">How much?</label>
-        <div className="flex items-center gap-2">
-          <input
-            autoFocus
-            inputMode="decimal"
-            value={grams}
-            className="field num flex-1"
-            onChange={(e) => setGrams(Math.max(0, Number(e.target.value) || 0))}
-          />
-          <span className="text-sm text-[var(--color-mute)]">g</span>
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {food.servingG && (
-            <button className="chip" onClick={() => setGrams(food.servingG)}>
-              {food.servingLabel ?? "serving"} ({food.servingG} g)
-            </button>
-          )}
-          {[50, 100, 150, 200, 250].map((g) => (
-            <button key={g} className="chip" onClick={() => setGrams(g)}>
-              {g} g
-            </button>
-          ))}
+        <div className="mt-4">
+          <Portion food={food} grams={grams} onGrams={setGrams} label={`Grams of ${food.name}`} />
         </div>
 
         <dl className="num mt-4 grid grid-cols-5 gap-1 border-t border-[var(--color-line)] pt-3 text-center text-sm">
