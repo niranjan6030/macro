@@ -32,11 +32,18 @@ export const dbConfigured = () => getAdminSupabase() !== null;
 /* ------------------------------------------------------------------ */
 
 /**
- * Today, in the user's own timezone.
+ * Validate a date the client sent, falling back to UTC today.
  *
- * A day boundary computed on the server would roll over at UTC midnight,
- * which is half past five in the morning in India — so a late dinner would
- * land on tomorrow. The client sends its own date and we validate the shape.
+ * The fallback is the dangerous half. A day boundary computed on the server
+ * rolls over at UTC midnight, which is half past five in the morning in
+ * India: everything logged between midnight and 05:30 IST belongs, as far as
+ * this function is concerned, to yesterday. The client always sends its own
+ * local date for reads and writes, so the diary itself is right — but
+ * anything that asks the server what day it is, with nothing to validate,
+ * gets the wrong answer for a quarter of the day.
+ *
+ * Use `todayFor(uid)` for that. This one is only for checking a date that
+ * arrived in a request.
  */
 export function isoDate(value, fallback = new Date()) {
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -44,6 +51,30 @@ export function isoDate(value, fallback = new Date()) {
     if (!Number.isNaN(d.getTime())) return value;
   }
   return fallback.toISOString().slice(0, 10);
+}
+
+/** Today, on the wall clock of whoever this is — not the server's. */
+export function todayIn(timeZone) {
+  try {
+    // en-CA formats as YYYY-MM-DD, which is the shape everything else uses.
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+  } catch {
+    // An unknown zone string should not take a route down with it.
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Today for one person, from the timezone their browser reported at setup.
+ *
+ * That column has been filled in since the first version and read by nothing,
+ * which is why the server has been quietly using UTC all along.
+ */
+export async function todayFor(uid) {
+  const profile = await getProfile(uid);
+  return todayIn(profile?.timezone ?? "UTC");
 }
 
 export const daysAgo = (iso, n) =>

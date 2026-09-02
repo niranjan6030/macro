@@ -1,11 +1,11 @@
 import { withUser, ok, fail, body, str } from "@/lib/api";
-import { createWorkout, listWorkouts, isoDate, daysAgo } from "@/lib/db";
+import { createWorkout, listWorkouts, isoDate, daysAgo, todayFor } from "@/lib/db";
 import { e1rm, volume } from "@/lib/fitness/training";
 
 export const GET = withUser(async (uid, req) => {
   const url = new URL(req.url);
   const days = Math.min(Number(url.searchParams.get("days") ?? 30) || 30, 365);
-  const since = daysAgo(isoDate(null), days);
+  const since = daysAgo(await todayFor(uid), days);
 
   const workouts = await listWorkouts(uid, since);
 
