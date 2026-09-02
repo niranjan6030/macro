@@ -8,7 +8,7 @@ import {
   totalsSince,
   weightSeries,
   listWorkouts,
-  isoDate,
+  todayFor,
   daysAgo,
 } from "@/lib/db";
 import { dailyTargets } from "@/lib/fitness/energy";
@@ -40,7 +40,7 @@ export const POST = withUser(async (uid, req) => {
     return fail("Finish setting up your profile and Macro AI can be useful.", 428);
   }
 
-  const today = isoDate(null);
+  const today = await todayFor(uid);
   const [stored, day, entries, week, weights, workouts] = await Promise.all([
     getProfile(uid),
     getDay(uid, today),

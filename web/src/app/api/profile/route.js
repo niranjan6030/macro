@@ -1,3 +1,4 @@
+import { currentUser } from "@/lib/firebase/admin";
 import { withUser, ok, fail, body, num, str, oneOf } from "@/lib/api";
 import { getProfile, upsertProfile, profileFor, latestWeight } from "@/lib/db";
 import { dailyTargets } from "@/lib/fitness/energy";
@@ -55,7 +56,14 @@ export const PUT = withUser(async (uid, req) => {
   const patch = {};
 
   if ("display_name" in b) patch.display_name = str(b.display_name, 80);
-  if ("email" in b) patch.email = str(b.email, 200);
+  /* The email comes from the verified session, never from the body. It was
+     read from the body before, which meant two things: the client never sent
+     it so every row was null, and anyone who did send one could have written
+     somebody else's address into their own row. Without it there is no way to
+     answer "user X says their data vanished" — the profiles table has only
+     opaque uids in it. */
+  const signedIn = await currentUser();
+  if (signedIn?.email) patch.email = str(signedIn.email, 200);
   if ("sex" in b) patch.sex = oneOf(b.sex, SEX);
   if ("height_cm" in b) patch.height_cm = num(b.height_cm, 80, 260);
   if ("activity" in b) patch.activity = oneOf(b.activity, ACTIVITY) ?? "sedentary";
