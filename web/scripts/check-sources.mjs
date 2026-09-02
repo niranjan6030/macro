@@ -97,4 +97,57 @@ await check("a roti comes out at a believable size", () => {
   assert.ok(one.kcal > 70 && one.kcal < 160, `one roti = ${one.kcal} kcal`);
 });
 
+/* ------------------------------------------------------------------ */
+/* Household measures                                                  */
+/* ------------------------------------------------------------------ */
+
+const portions = await import("../.check/nutrition/portions.js");
+
+console.log("\nHousehold measures");
+
+await check("a wet dish is offered bowls, not spoons", () => {
+  const { portions: p } = portions.portionsFor({ name: "Sambar", servingG: null });
+  const ids = p.map((x) => x.id);
+  assert.ok(ids.includes("katori"), `sambar offered ${ids.join(", ")}`);
+  assert.ok(!ids.includes("tsp"), "nobody eats sambar by the teaspoon");
+});
+
+await check("a drink is offered glasses", () => {
+  const { portions: p } = portions.portionsFor({ name: "Badam milk", servingG: null });
+  const ids = p.map((x) => x.id);
+  assert.ok(ids.includes("glass") || ids.includes("tumbler"), `badam milk offered ${ids.join(", ")}`);
+});
+
+await check("ice cream is offered scoops", () => {
+  // Asserted on the label, not the id: when the curated table already says a
+  // serving is one 60 g scoop, that entry wins and the generic scoop is
+  // dropped as a duplicate. What matters is that the word reaches the person.
+  const ice = indian.search("ice cream", 1)[0];
+  const { portions: p } = portions.portionsFor(ice);
+  assert.ok(p.some((x) => /scoop/i.test(x.label)), `offered ${p.map((x) => x.label).join(", ")}`);
+  assert.ok(p.every((x) => x.grams < 200), "nobody serves ice cream by the bowlful here");
+});
+
+await check("oil is offered spoons, and is not mistaken for a drink", () => {
+  const { portions: p } = portions.portionsFor({ name: "Coconut oil", servingG: 14 });
+  const ids = p.map((x) => x.id);
+  assert.ok(ids.includes("tsp"), `oil offered ${ids.join(", ")}`);
+  assert.ok(!ids.includes("glass"), "coconut oil is not a glass of anything");
+});
+
+await check("a food's own serving leads, because someone weighed it", () => {
+  const roti = indian.search("roti", 1)[0];
+  const { portions: p } = portions.portionsFor(roti);
+  assert.equal(p[0].grams, roti.servingG, "the curated serving should come first");
+});
+
+await check("every offered measure lands on a sane weight", () => {
+  for (const f of indian.FOODS) {
+    for (const p of portions.portionsFor(f).portions) {
+      assert.ok(p.grams > 0 && p.grams <= 500, `${f.name} / ${p.label} = ${p.grams} g`);
+    }
+  }
+  console.log(`       (${indian.FOODS.length} foods checked)`);
+});
+
 console.log(`\n${passed} checks passed${skipped ? `, ${skipped} skipped` : ""}.\n`);

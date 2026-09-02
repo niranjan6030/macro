@@ -32,6 +32,15 @@ const TOOL = {
         type: "number",
         description: "How many people the quantities below feed. Usually 1 to 6.",
       },
+      finished_grams: {
+        type: "number",
+        description:
+          "Weight of the finished dish as it reaches the table, across the whole batch, in grams. "
+          + "For anything wet — dal, sambar, curry, soup, porridge — this is much larger than the "
+          + "ingredients added up, because most of the weight is water. 300 g of dry dal becomes "
+          + "roughly 2 kg of sambar. For a dry dish like a stir fry it is slightly less than the "
+          + "ingredients, because water cooks off.",
+      },
       ingredients: {
         type: "array",
         description:
@@ -42,7 +51,9 @@ const TOOL = {
             search_query: {
               type: "string",
               description:
-                "Plain generic name for a nutrition database: 'toor dal cooked', 'sunflower oil', 'onion raw'.",
+                "Plain generic name for a nutrition database: 'toor dal cooked', 'sunflower oil', "
+                + "'onion raw'. Never a brand and never a shop product. Say which state it is in — "
+                + "'cooked' or 'raw' — because the calories per 100 g differ by two or three times.",
             },
             grams: {
               type: "number",
@@ -59,7 +70,7 @@ const TOOL = {
           "Anything that would change the numbers a lot and is worth telling the person.",
       },
     },
-    required: ["ingredients", "serves"],
+    required: ["ingredients", "serves", "finished_grams"],
   },
 };
 
@@ -149,8 +160,18 @@ export async function estimate(dish, description) {
   const resolved = await Promise.all(
     list.map(async (item) => {
       const grams = Math.max(0, Math.min(Number(item.grams) || 0, 5000));
-      const hits = await searchAll(item.search_query, 2).catch(() => []);
-      const food = hits[0] ?? null;
+      const hits = await searchAll(item.search_query, 6).catch(() => []);
+      /* Prefer the curated table and laboratory values over branded
+         products. Taking the top hit blindly matched "drumstick" to
+         Squashies, which is a British sweet, and then billed a vegetable at
+         353 kcal per 100 g. A shop shelf is the last place to look for what
+         an ingredient is. */
+      const food =
+        hits.find((f) => f.source === "custom")
+        ?? hits.find((f) => f.confidence === "measured")
+        ?? hits.find((f) => f.source === "usda")
+        ?? hits[0]
+        ?? null;
       return { query: item.search_query, grams, food };
     }),
   );
@@ -193,7 +214,17 @@ export async function estimate(dish, description) {
     };
   }
 
-  const scale = 100 / totalGrams;
+  /* The denominator is the finished dish, not the shopping list.
+     Summing raw ingredient weights and calling that the served weight is
+     what put sambar at 281 kcal per 100 g — roughly three times reality —
+     because the water it is mostly made of was never counted. The model's
+     figure is trusted only inside a sane band around the ingredients;
+     outside it, something has gone wrong and the sum is the safer answer. */
+  const claimed = Number(recipe.finished_grams) || 0;
+  const servedGrams =
+    claimed >= totalGrams * 0.5 && claimed <= totalGrams * 6 ? claimed : totalGrams;
+
+  const scale = 100 / servedGrams;
   const per100g = {
     kcal: round1(totals.kcal * scale),
     protein: round1(totals.protein * scale),
@@ -221,7 +252,7 @@ export async function estimate(dish, description) {
     per100g,
     ingredients,
     serves: Math.max(1, Math.round(recipe.serves ?? 1)),
-    totalGrams: Math.round(totalGrams),
+    totalGrams: Math.round(servedGrams),
     note: recipe.note,
   };
 }
