@@ -45,7 +45,11 @@ function score(f, q) {
   const query = q.toLowerCase();
 
   let s = 0;
-  if (name === query) s += 60;
+  // An exact alias is an exact match: "dosa" names "Dosa, plain" as surely
+  // as the display name does.
+  const exact = name === query || (f.aliases ?? []).some((a) => a.toLowerCase() === query);
+
+  if (exact) s += 60;
   else if (name.startsWith(query)) s += 40;
   else if (name.includes(query)) s += 22;
 
@@ -55,8 +59,14 @@ function score(f, q) {
 
   s += f.confidence === "measured" ? 25 : f.confidence === "label" ? 15 : 5;
 
-  // Local staples are curated for this audience; they earn a nudge.
-  if (f.source === "custom") s += 12;
+  /* Local staples are curated for this audience, and a nudge was not enough.
+     Searching "pongal" put a crowd-sourced row at 125 kcal above the checked
+     entry at 165, because Open Food Facts rows claim "label" — copied off a
+     packet — which outscores the honest "estimated" on a dish nobody can
+     read a panel for. Dedupe could not catch it either: the two names differ by
+     enough to look like different foods. For an app built around Indian
+     cooking, the vetted row wins for its own dish. */
+  if (f.source === "custom") s += 30;
   // Shorter names are usually the plainer, more basic food.
   s -= Math.min(name.length / 12, 8);
 
