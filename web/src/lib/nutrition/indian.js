@@ -1275,6 +1275,124 @@ const ROWS = [
     n: [1, 0, 0.1, 0, 0],
     unit: ["can", 330],
   },
+  // --- The aromatics and vegetables a recipe is actually built from -------
+  //
+  // These are here because the recipe estimator kept failing on them. A
+  // sambar is drumstick, curry leaves, tamarind and ginger; none of those
+  // were in the table, so each was either left unpriced or answered from a
+  // supermarket shelf — "drumstick" came back as a chicken leg, and once as
+  // a British sweet.
+  {
+    name: "Drumstick / moringa pods, cooked",
+    aliases: ["drumstick", "moringa", "murungakkai", "sahjan"],
+    n: [37, 2.1, 8.5, 0.2, 3.2],
+    unit: ["pod", 40],
+    confidence: "measured",
+  },
+  {
+    name: "Curry leaves",
+    aliases: ["curry leaves", "kadi patta", "karuveppilai"],
+    n: [108, 6.1, 18.7, 1.0, 6.4],
+    unit: ["sprig", 3],
+  },
+  {
+    name: "Coriander leaves",
+    aliases: ["coriander", "cilantro", "dhania", "kothamalli"],
+    n: [23, 2.1, 3.7, 0.5, 2.8],
+    unit: ["handful", 10],
+  },
+  {
+    name: "Mint leaves",
+    aliases: ["mint", "pudina"],
+    n: [48, 3.8, 8.4, 0.7, 6.8],
+    unit: ["handful", 10],
+  },
+  {
+    name: "Ginger",
+    aliases: ["ginger", "adrak", "inji"],
+    n: [80, 1.8, 17.8, 0.8, 2.0],
+    unit: ["inch", 6],
+  },
+  {
+    name: "Garlic",
+    aliases: ["garlic", "lehsun", "poondu"],
+    n: [149, 6.4, 33.1, 0.5, 2.1],
+    unit: ["clove", 3],
+  },
+  {
+    name: "Green chilli",
+    aliases: ["green chilli", "chilli", "mirchi", "molagai"],
+    n: [40, 1.9, 8.8, 0.4, 1.5],
+    unit: ["chilli", 5],
+  },
+  {
+    name: "Capsicum / bell pepper",
+    aliases: ["capsicum", "bell pepper", "shimla mirch"],
+    n: [26, 1.0, 6.0, 0.3, 2.1],
+    unit: ["katori", 100],
+  },
+  {
+    name: "Brinjal / aubergine, cooked",
+    aliases: ["brinjal", "aubergine", "eggplant", "baingan", "kathirikai"],
+    n: [35, 0.8, 8.7, 0.2, 2.5],
+    unit: ["katori", 120],
+  },
+  {
+    name: "Raw banana / plantain, cooked",
+    aliases: ["raw banana", "plantain", "vazhakkai"],
+    n: [116, 0.8, 31.0, 0.2, 2.3],
+    unit: ["katori", 120],
+  },
+  {
+    name: "Yam / suran, cooked",
+    aliases: ["yam", "suran", "elephant foot"],
+    n: [118, 1.5, 27.9, 0.2, 4.1],
+    unit: ["katori", 120],
+  },
+  {
+    name: "Cluster beans / gawar, cooked",
+    aliases: ["cluster beans", "gawar", "kothavarangai"],
+    n: [46, 3.2, 10.8, 0.4, 3.4],
+    unit: ["katori", 120],
+  },
+  {
+    name: "Ash gourd, cooked",
+    aliases: ["ash gourd", "petha", "poosanikai"],
+    n: [13, 0.4, 3.0, 0.2, 1.4],
+    unit: ["katori", 150],
+  },
+  {
+    name: "Ridge gourd, cooked",
+    aliases: ["ridge gourd", "turai", "peerkangai"],
+    n: [20, 0.5, 4.4, 0.1, 1.8],
+    unit: ["katori", 150],
+  },
+  {
+    name: "Spring onion",
+    aliases: ["spring onion", "scallion"],
+    n: [32, 1.8, 7.3, 0.2, 2.6],
+    unit: ["handful", 30],
+  },
+  {
+    name: "Coconut milk",
+    aliases: ["coconut milk", "thengai paal"],
+    n: [197, 2.0, 4.8, 20.0, 2.2],
+    unit: ["katori", 100],
+    confidence: "estimated",
+  },
+  {
+    name: "Tamarind pulp",
+    aliases: ["tamarind", "imli", "puli"],
+    n: [239, 2.8, 62.5, 0.6, 5.1],
+    unit: ["tbsp", 15],
+  },
+  {
+    name: "Mixed vegetables, cooked",
+    aliases: ["mixed vegetables", "mixed veg"],
+    n: [45, 2.3, 9.0, 0.3, 3.2],
+    unit: ["katori", 120],
+    confidence: "estimated",
+  },
 ];
 
 /** Sodium and sugar are not carried in the table; they are set to 0 rather
@@ -1301,11 +1419,28 @@ const INDEX = ROWS.map((r, i) => ({
 }));
 
 /** Substring match over names and aliases, best match first. */
+/** "onions" to "onion", "tomatoes" to "tomato". Crude, and enough. */
+function singular(w) {
+  if (w.length < 4) return w;
+  if (w.endsWith("ies")) return `${w.slice(0, -3)}y`;
+  if (w.endsWith("oes") || w.endsWith("hes") || w.endsWith("ses")) return w.slice(0, -2);
+  if (w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+  return w;
+}
+
 export function search(query, limit = 8) {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
 
-  const hits = [];
+  /* Words worth matching on their own. Two letters carry no signal, and
+     a query is not always a phrase.
+     Singularised, because people type what they cooked with — "onions",
+     "tomatoes", "eggs" — and the table names the thing itself. Without this
+     every plural found nothing at all. */
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 2).map(singular);
+
+  const hits = [
+];
   for (const { food, terms } of INDEX) {
     let best = 0;
     for (const t of terms) {
@@ -1313,6 +1448,25 @@ export function search(query, limit = 8) {
       else if (t.startsWith(q)) best = Math.max(best, 80);
       else if (t.includes(q)) best = Math.max(best, 55);
     }
+
+    /* Phrase matching alone answered "basmati rice cooked" with nothing at
+       all, while "Rice, basmati, cooked" sat in the table — every word
+       present, in a different order. That made the whole curated table
+       invisible to any multi-word search, in the app and in the recipe
+       estimator both. */
+    if (best === 0 && words.length >= 1) {
+      const blob = terms.map((t) => t.split(" ").map(singular).join(" ")).join(" ");
+      const found = words.filter((w) => blob.includes(w)).length;
+      if (found === words.length) best = 50;
+      /* One word short still counts. "onion sauteed" and "almonds raw" carry
+         one word naming the food and one describing what was done to it, and
+         demanding both matched left onions answered by breaded onion rings
+         in aioli — a real Open Food Facts row, and 300 kcal adrift. Being
+         generous here is safe: the caller scores these against the shelf and
+         a curated row wins outright. */
+      else if (found >= 1 && found >= words.length - 1) best = 30;
+    }
+
     if (best > 0) hits.push({ food, score: best });
   }
   return hits

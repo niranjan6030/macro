@@ -1,6 +1,7 @@
 import "server-only";
 import { plausible } from "@/lib/nutrition/types";
-import { searchAll } from "@/lib/nutrition/search";
+import { searchAll, indian } from "@/lib/nutrition/search";
+import { bestIngredient } from "@/lib/nutrition/match";
 import { aiConfigured } from "./provider";
 import { runRound } from "./run";
 
@@ -160,18 +161,16 @@ export async function estimate(dish, description) {
   const resolved = await Promise.all(
     list.map(async (item) => {
       const grams = Math.max(0, Math.min(Number(item.grams) || 0, 5000));
-      const hits = await searchAll(item.search_query, 6).catch(() => []);
-      /* Prefer the curated table and laboratory values over branded
-         products. Taking the top hit blindly matched "drumstick" to
-         Squashies, which is a British sweet, and then billed a vegetable at
-         353 kcal per 100 g. A shop shelf is the last place to look for what
-         an ingredient is. */
-      const food =
-        hits.find((f) => f.source === "custom")
-        ?? hits.find((f) => f.confidence === "measured")
-        ?? hits.find((f) => f.source === "usda")
-        ?? hits[0]
-        ?? null;
+      /* The curated table is consulted directly as well as through the
+         general search. searchAll ranks and then truncates, so a plain
+         "Chicken breast, skinless, cooked" could be cut before the matcher
+         ever saw it — which is how chicken curry came to be priced from
+         cooked sausage, and onions from breaded onion rings in aioli. */
+      const [wide, local] = await Promise.all([
+        searchAll(item.search_query, 12).catch(() => []),
+        Promise.resolve(indian.search(item.search_query, 6)).catch(() => []),
+      ]);
+      const food = bestIngredient(item.search_query, [...local, ...wide]);
       return { query: item.search_query, grams, food };
     }),
   );
