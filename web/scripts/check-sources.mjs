@@ -150,4 +150,121 @@ await check("every offered measure lands on a sane weight", () => {
   console.log(`       (${indian.FOODS.length} foods checked)`);
 });
 
+/* ------------------------------------------------------------------ */
+/* Matching an ingredient to a food                                    */
+/*                                                                     */
+/* Every case here is one the estimator actually got wrong on          */
+/* production before this function existed.                            */
+/* ------------------------------------------------------------------ */
+
+const { bestIngredient } = await import("../.check/nutrition/match.js");
+
+const food = (name, extra = {}) => ({
+  name, per100g: { kcal: 100 }, source: "openfoodfacts", confidence: "estimated", ...extra,
+});
+
+console.log("\nIngredient matching");
+
+await check("the curated table answers multi-word queries", () => {
+  // Phrase-only matching returned nothing for any of these, which made the
+  // whole table invisible to the recipe estimator and to anyone typing more
+  // than one word into search.
+  for (const [q, want] of [
+    ["basmati rice cooked", /basmati/i],
+    ["chicken meat cooked", /chicken/i],
+    ["toor dal cooked", /toor/i],
+    ["whole milk", /milk/i],
+  ]) {
+    const hits = indian.search(q, 6);
+    assert.ok(hits.length, `"${q}" found nothing in the curated table`);
+    assert.ok(want.test(hits[0].name), `"${q}" -> ${hits[0].name}`);
+  }
+});
+
+await check("a curated row beats a crowd-sourced one outright, not on points", () => {
+  const hit = bestIngredient("basmati rice cooked", [
+    // Open Food Facts is full of rows like this: named cooked, priced raw.
+    food("Basmati rice cooked", { per100g: { kcal: 350 } }),
+    food("Rice, basmati, cooked", { source: "custom", confidence: "measured", per100g: { kcal: 121 } }),
+  ]);
+  assert.equal(hit.per100g.kcal, 121, `picked ${hit.name} at ${hit.per100g.kcal} kcal`);
+});
+
+await check("chicken is chicken, not sausage", () => {
+  const hit = bestIngredient("chicken meat cooked", [
+    food("Chicken cooked sausage"),
+    food("Chicken breast, skinless, cooked", { source: "custom", confidence: "measured" }),
+  ]);
+  assert.equal(hit.name, "Chicken breast, skinless, cooked");
+});
+
+await check("an onion is not breaded onion rings in aioli", () => {
+  const hit = bestIngredient("onion", [
+    food("Onion rings*sauce aioli*rondelles d'oignons panees"),
+    food("Onion, raw", { source: "custom", confidence: "measured" }),
+  ]);
+  assert.equal(hit.name, "Onion, raw");
+});
+
+await check("a substring coincidence does not win", () => {
+  // "raw" lives inside "prawns", so a plain substring search ranks prawns
+  // first for "almonds raw". The matcher has to see past that.
+  const pick = bestIngredient("almonds raw", indian.search("almonds raw", 6));
+  assert.match(pick.name, /almond/i, `picked ${pick.name}`);
+});
+
+await check("a describing word does not have to match", () => {
+  for (const [q, want] of [["onion sauteed", /onion/i], ["tomato pureed", /tomato/i],
+                           ["paneer cubes", /paneer/i]]) {
+    const pick = bestIngredient(q, indian.search(q, 6));
+    assert.ok(pick && want.test(pick.name), `"${q}" -> ${pick?.name ?? "nothing"}`);
+  }
+});
+
+await check("milk means milk, not curd that happens to say milk", () => {
+  const hit = bestIngredient("milk", [
+    food("Curd / dahi, whole milk", { source: "custom", confidence: "measured" }),
+    food("Milk, cow, whole", { source: "custom", confidence: "measured" }),
+  ]);
+  assert.equal(hit.name, "Milk, cow, whole");
+});
+
+await check("a drumstick is not a sweet", () => {
+  const hit = bestIngredient("drumstick vegetable", [
+    food("Squashies"),
+    food("Drumstick, cooked", { source: "custom" }),
+  ]);
+  assert.equal(hit.name, "Drumstick, cooked");
+});
+
+await check("cooked dal is not dry dal", () => {
+  const hit = bestIngredient("toor dal cooked", [
+    food("Uncooked Toor Dal"),
+    food("Dal, toor / arhar, cooked", { source: "custom", confidence: "measured" }),
+  ]);
+  assert.equal(hit.name, "Dal, toor / arhar, cooked");
+});
+
+await check("and dry means dry, when that is what was asked", () => {
+  const hit = bestIngredient("raw toor dal", [
+    food("Dal, toor / arhar, cooked", { source: "custom" }),
+    food("Toor dal, dry"),
+  ]);
+  assert.equal(hit.name, "Toor dal, dry");
+});
+
+await check("a generic food beats a branded one of the same name", () => {
+  const hit = bestIngredient("sunflower oil", [
+    food("Sunflower Oil", { brand: "Fortune" }),
+    food("Cooking oil (any)", { source: "custom", confidence: "measured" }),
+    food("Sunflower oil", { source: "custom", confidence: "measured" }),
+  ]);
+  assert.equal(hit.brand, undefined, `picked the branded one: ${hit.name}`);
+});
+
+await check("nothing plausible returns nothing, rather than a wrong answer", () => {
+  assert.equal(bestIngredient("drumstick", [food("Squashies"), food("Toffee Bonbons")]), null);
+  assert.equal(bestIngredient("anything", []), null);
+});
+
 console.log(`\n${passed} checks passed${skipped ? `, ${skipped} skipped` : ""}.\n`);
