@@ -103,6 +103,32 @@ await check("a roti comes out at a believable size", () => {
 
 const portions = await import("../.check/nutrition/portions.js");
 
+await check("regional Indian cooking is covered, not just the north", () => {
+  /* This started at 69 per cent, with South Indian the weakest at fifteen of
+     thirty-one — in an app built for India. Rasam was missing outright. */
+  const REGIONS = {
+    "South Indian": ["idli","dosa","vada","upma","pongal","uttapam","appam","puttu",
+      "idiyappam","rasam","sambar","avial","kootu","poriyal","thoran","olan","erissery",
+      "curd rice","lemon rice","bisibelebath","kesari","payasam","adai","paniyaram",
+      "murukku","molagapodi"],
+    "North Indian": ["roti","paratha","naan","bhatura","chole","rajma","dal makhani",
+      "palak paneer","aloo gobi","baingan bharta","kadhi","butter chicken","biryani",
+      "pulao","raita","lassi","kulcha","dal tadka"],
+    "Bengali": ["luchi","shukto","macher jhol","posto","mishti doi","rasgulla","sandesh"],
+    "Gujarati / Maharashtrian": ["dhokla","thepla","khandvi","undhiyu","fafda","handvo",
+      "shrikhand","pav bhaji","vada pav","poha","puran poli","modak"],
+    "Street food": ["samosa","kachori","pani puri","bhel puri","chaat","momos","frankie",
+      "dabeli","pakora","bonda"],
+    "Staples": ["rice","atta","besan","suji","toor dal","moong dal","urad dal","chana dal",
+      "masoor dal","curd","paneer","ghee","jaggery","tamarind","coconut","milk"],
+  };
+  const missing = [];
+  for (const list of Object.values(REGIONS)) {
+    for (const q of list) if (indian.search(q, 1).length === 0) missing.push(q);
+  }
+  assert.equal(missing.length, 0, `not in the table: ${missing.join(", ")}`);
+});
+
 console.log("\nHousehold measures");
 
 await check("a wet dish is offered bowls, not spoons", () => {
@@ -204,6 +230,27 @@ await check("an onion is not breaded onion rings in aioli", () => {
     food("Onion, raw", { source: "custom", confidence: "measured" }),
   ]);
   assert.equal(hit.name, "Onion, raw");
+});
+
+await check("the checked entry leads for its own dish", async () => {
+  /* "dosa" returned a crowd-sourced row at 360 kcal — a dry mix — above the
+     checked 168, because the ranker compared only against the display name
+     and "Dosa, plain" scored as a prefix while the other took the exact
+     match. An exact alias is an exact match. */
+  const { searchAll } = await import("../.check/nutrition/search.js");
+  for (const dish of ["dosa", "idli", "sambar", "rasam", "pongal"]) {
+    const top = (await searchAll(dish, 3))[0];
+    assert.equal(top?.source, "custom",
+      `"${dish}" led with ${top?.name} [${top?.source}] at ${top?.per100g.kcal} kcal`);
+  }
+});
+
+await check("a branded search still finds the brand", async () => {
+  // The curated boost must not bury a packet somebody is holding.
+  const { searchAll } = await import("../.check/nutrition/search.js");
+  const top = (await searchAll("amul butter", 3))[0];
+  assert.ok(top && /amul/i.test(`${top.name} ${top.brand ?? ""}`),
+    `led with ${top?.name} instead of the Amul packet`);
 });
 
 await check("a supermarket listing cannot evict the curated entry", async () => {

@@ -1393,6 +1393,265 @@ const ROWS = [
     unit: ["katori", 120],
     confidence: "estimated",
   },
+  // --- Regional cooking, because "Indian food" is not one cuisine ---------
+  //
+  // Coverage was measured against a list of what people actually eat across
+  // the country and came back at 69 per cent — with South Indian the weakest
+  // at fifteen of thirty-one, in an app built for India. Rasam was missing
+  // outright, which is a daily staple in half the country.
+  {
+    name: "Pongal / ven pongal",
+    aliases: ["pongal", "ven pongal", "khara pongal"],
+    n: [165, 4.5, 24.0, 5.8, 1.5],
+    unit: ["katori", 200],
+    confidence: "estimated",
+  },
+  {
+    name: "Puttu",
+    aliases: ["puttu"],
+    n: [145, 2.8, 30.0, 1.8, 1.6],
+    unit: ["piece", 100],
+    confidence: "estimated",
+  },
+  {
+    name: "Idiyappam / string hoppers",
+    aliases: ["idiyappam", "string hoppers", "sevai"],
+    n: [140, 2.6, 31.0, 0.4, 1.2],
+    unit: ["piece", 50],
+    confidence: "estimated",
+  },
+  {
+    name: "Rasam",
+    aliases: ["rasam", "saaru", "chaaru"],
+    n: [32, 1.5, 5.5, 0.7, 1.0],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Avial",
+    aliases: ["avial", "aviyal"],
+    n: [120, 2.5, 8.0, 8.8, 2.8],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Kootu",
+    aliases: ["kootu"],
+    n: [95, 4.5, 12.0, 3.2, 3.5],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Poriyal",
+    aliases: ["poriyal", "dry vegetable"],
+    n: [85, 2.2, 9.0, 4.5, 3.0],
+    unit: ["katori", 120],
+    confidence: "estimated",
+  },
+  {
+    name: "Thoran",
+    aliases: ["thoran"],
+    n: [90, 2.4, 9.5, 4.8, 3.2],
+    unit: ["katori", 120],
+    confidence: "estimated",
+  },
+  {
+    name: "Olan",
+    aliases: ["olan"],
+    n: [78, 1.2, 5.0, 6.2, 1.5],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Erissery",
+    aliases: ["erissery"],
+    n: [130, 3.5, 15.0, 6.5, 3.5],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Bisibelebath",
+    aliases: ["bisibelebath", "bisi bele bath"],
+    n: [150, 4.5, 22.0, 5.0, 2.5],
+    unit: ["plate", 250],
+    confidence: "estimated",
+  },
+  {
+    name: "Kesari / rava sheera",
+    aliases: ["kesari", "sheera", "rava kesari"],
+    n: [320, 4.0, 48.0, 12.0, 1.0],
+    unit: ["katori", 100],
+    confidence: "estimated",
+  },
+  {
+    name: "Adai",
+    aliases: ["adai"],
+    n: [190, 8.5, 26.0, 5.5, 4.5],
+    unit: ["piece", 80],
+    confidence: "estimated",
+  },
+  {
+    name: "Paniyaram",
+    aliases: ["paniyaram", "appe", "gunta ponganalu"],
+    n: [175, 4.2, 27.0, 5.5, 1.8],
+    unit: ["piece", 30],
+    confidence: "estimated",
+  },
+  {
+    name: "Molagapodi / gunpowder",
+    aliases: ["molagapodi", "gunpowder", "idli podi"],
+    n: [420, 18.0, 40.0, 21.0, 12.0],
+    unit: ["tsp", 5],
+    confidence: "estimated",
+  },
+  {
+    name: "Raita",
+    aliases: ["raita"],
+    n: [60, 2.8, 5.0, 3.2, 0.4],
+    unit: ["katori", 120],
+    confidence: "estimated",
+  },
+  {
+    name: "Kulcha",
+    aliases: ["kulcha"],
+    n: [290, 8.0, 50.0, 6.0, 2.2],
+    unit: ["piece", 80],
+    confidence: "estimated",
+  },
+  {
+    name: "Luchi",
+    aliases: ["luchi"],
+    n: [400, 6.5, 45.0, 21.0, 1.8],
+    unit: ["piece", 30],
+    confidence: "estimated",
+  },
+  {
+    name: "Shukto",
+    aliases: ["shukto"],
+    n: [75, 2.0, 8.5, 3.8, 2.5],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Macher jhol / Bengali fish curry",
+    aliases: ["macher jhol", "fish jhol"],
+    n: [125, 12.5, 4.0, 6.5, 0.8],
+    unit: ["katori", 200],
+    confidence: "estimated",
+  },
+  {
+    name: "Aloo posto",
+    aliases: ["posto", "aloo posto"],
+    n: [180, 5.5, 9.0, 14.0, 3.0],
+    unit: ["katori", 120],
+    confidence: "estimated",
+  },
+  {
+    name: "Mishti doi",
+    aliases: ["mishti doi", "sweet curd"],
+    n: [155, 4.0, 26.0, 4.0, 0],
+    unit: ["katori", 100],
+    confidence: "estimated",
+  },
+  {
+    name: "Sandesh",
+    aliases: ["sandesh"],
+    n: [320, 12.0, 38.0, 13.0, 0],
+    unit: ["piece", 30],
+    confidence: "estimated",
+  },
+  {
+    name: "Khandvi",
+    aliases: ["khandvi"],
+    n: [180, 6.5, 18.0, 9.0, 2.0],
+    unit: ["piece", 25],
+    confidence: "estimated",
+  },
+  {
+    name: "Undhiyu",
+    aliases: ["undhiyu"],
+    n: [165, 4.5, 16.0, 9.5, 5.0],
+    unit: ["katori", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Fafda",
+    aliases: ["fafda"],
+    n: [480, 11.0, 45.0, 28.0, 4.0],
+    unit: ["handful", 30],
+    confidence: "estimated",
+  },
+  {
+    name: "Handvo",
+    aliases: ["handvo"],
+    n: [210, 6.5, 28.0, 8.0, 3.5],
+    unit: ["piece", 80],
+    confidence: "estimated",
+  },
+  {
+    name: "Shrikhand",
+    aliases: ["shrikhand"],
+    n: [245, 6.0, 35.0, 8.5, 0.3],
+    unit: ["katori", 100],
+    confidence: "estimated",
+  },
+  {
+    name: "Puran poli",
+    aliases: ["puran poli", "obbattu", "holige"],
+    n: [300, 7.0, 52.0, 7.0, 3.5],
+    unit: ["piece", 70],
+    confidence: "estimated",
+  },
+  {
+    name: "Modak",
+    aliases: ["modak"],
+    n: [280, 4.5, 42.0, 10.5, 2.5],
+    unit: ["piece", 35],
+    confidence: "estimated",
+  },
+  {
+    name: "Kachori",
+    aliases: ["kachori"],
+    n: [420, 8.5, 45.0, 23.0, 3.5],
+    unit: ["piece", 50],
+    confidence: "estimated",
+  },
+  {
+    name: "Papdi chaat",
+    aliases: ["chaat", "papdi chaat"],
+    n: [240, 6.0, 32.0, 10.0, 3.5],
+    unit: ["plate", 150],
+    confidence: "estimated",
+  },
+  {
+    name: "Frankie / kathi roll",
+    aliases: ["frankie", "kathi roll", "egg roll"],
+    n: [250, 9.0, 30.0, 10.5, 2.5],
+    unit: ["roll", 180],
+    confidence: "estimated",
+  },
+  {
+    name: "Dabeli",
+    aliases: ["dabeli"],
+    n: [260, 6.0, 38.0, 9.5, 3.0],
+    unit: ["piece", 120],
+    confidence: "estimated",
+  },
+  {
+    name: "Bonda",
+    aliases: ["bonda"],
+    n: [290, 5.0, 33.0, 15.5, 2.5],
+    unit: ["piece", 45],
+    confidence: "estimated",
+  },
+  {
+    name: "Semolina / suji, dry",
+    aliases: ["suji", "sooji", "rava", "semolina"],
+    n: [360, 12.7, 72.8, 1.1, 3.9],
+    unit: ["katori", 100],
+    confidence: "measured",
+  },
+
 ];
 
 /** Sodium and sugar are not carried in the table; they are set to 0 rather
@@ -1411,6 +1670,12 @@ export const FOODS = ROWS.map((r, i) => ({
   servingG: r.unit?.[1] ?? null,
   servingLabel: r.unit ? `1 ${r.unit[0]}` : null,
   confidence: r.confidence ?? "estimated",
+  /* The names people type, carried on the food itself. The ranker only ever
+     compared against the display name, so "Dosa, plain" scored as a prefix
+     match for "dosa" while a crowd-sourced row literally called "Dosa" took
+     the exact-match bonus and won — even though "dosa" is a listed alias of
+     the checked entry. */
+  aliases: r.aliases ?? [],
 }));
 
 const INDEX = ROWS.map((r, i) => ({
