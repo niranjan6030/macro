@@ -63,10 +63,27 @@ function score(f, q) {
   return s;
 }
 
-/** Two sources describing the same food; keep the more trustworthy one. */
+/**
+ * Two sources describing the same food; keep the more trustworthy one.
+ *
+ * "Trustworthy" cannot be read off the confidence field alone. Open Food
+ * Facts rows declare themselves "label" — copied from a packet — which
+ * outranks the honest "estimated" on a curated composite dish, so searching
+ * "sambar" deleted this app's own vetted entry and kept a crowd-sourced
+ * packet at 50 kcal per 100 g. The curated table is the reason Indian food
+ * works here at all; it is not something a supermarket listing gets to
+ * evict.
+ */
 function dedupe(list) {
   const seen = new Map();
-  const rank = { measured: 3, label: 2, estimated: 1 };
+  const confidenceRank = { measured: 3, label: 2, estimated: 1 };
+  // Source outranks claimed confidence. A curated row was checked by someone;
+  // a crowd-sourced one asserted its own accuracy.
+  const sourceRank = { custom: 3, usda: 2, openfoodfacts: 1 };
+  const better = (a, b) =>
+    (sourceRank[a.source] ?? 0) !== (sourceRank[b.source] ?? 0)
+      ? (sourceRank[a.source] ?? 0) > (sourceRank[b.source] ?? 0)
+      : confidenceRank[a.confidence] > confidenceRank[b.confidence];
 
   for (const f of list) {
     const key =
@@ -75,7 +92,7 @@ function dedupe(list) {
         .replace(/[^a-z0-9]/g, "")
         .slice(0, 24) + (f.brand ? `|${f.brand.toLowerCase()}` : "");
     const existing = seen.get(key);
-    if (!existing || rank[f.confidence] > rank[existing.confidence]) seen.set(key, f);
+    if (!existing || better(f, existing)) seen.set(key, f);
   }
   return [...seen.values()];
 }
