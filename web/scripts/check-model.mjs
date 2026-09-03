@@ -75,6 +75,44 @@ check("macros account for the calorie target", () => {
 
 console.log("\nProjection");
 
+await check("eating maintenance holds the weight, whatever the body fat", () => {
+  /* Adaptation used to switch on at full strength for any shortfall at all.
+     Maintenance came out 0.02 kcal under expenditure, which was enough to
+     flip the sign, suppress expenditure by over a percent, and compound into
+     a forecast fourteen kilos of gain for somebody eating exactly enough. */
+  const base = { sex: "male", age: 28, heightCm: 175, weightKg: 70,
+                 activity: "moderate", goal: "maintain", targetWeightKg: 70,
+                 trainingDaysPerWeek: 4 };
+  for (const bf of [null, 18, 25]) {
+    const p = { ...base, bodyFatPct: bf };
+    const r = project(p, dailyTargets(p).kcal);
+    const end = r.weeks.at(-1).weightKg;
+    assert.ok(Math.abs(end - 70) < 1.5,
+      `body fat ${bf ?? "unknown"}: drifted from 70 to ${end} kg on maintenance`);
+  }
+});
+
+await check("the deficit stops once the goal is reached", () => {
+  /* It did not, so a cut ran the full two years and forecast 82 kg down to
+     36 kg — a number the chart would have drawn without complaint. */
+  const p = { sex: "male", age: 28, heightCm: 175, weightKg: 82.4,
+              activity: "moderate", goal: "lose", targetWeightKg: 70,
+              trainingDaysPerWeek: 4, bodyFatPct: null };
+  const r = project(p, dailyTargets(p).kcal);
+  assert.ok(r.weeksToGoal, "never reached the goal");
+  const end = r.weeks.at(-1).weightKg;
+  assert.ok(end >= 68 && end <= 72, `carried on past the goal to ${end} kg`);
+});
+
+await check("a bulk settles at its target rather than running away", () => {
+  const p = { sex: "male", age: 28, heightCm: 175, weightKg: 70,
+              activity: "moderate", goal: "gain", targetWeightKg: 80,
+              trainingDaysPerWeek: 4, bodyFatPct: null };
+  const r = project(p, dailyTargets(p).kcal);
+  const end = r.weeks.at(-1).weightKg;
+  assert.ok(end >= 78 && end <= 82, `ended at ${end} kg, not near 80`);
+});
+
 check("weight loss decelerates rather than running in a straight line", () => {
   const p = { ...man, weightKg: 100, goal: "lose", targetWeightKg: 80 };
   const r = project(p, 2000);
@@ -127,10 +165,21 @@ check("intakeForDeadline finds an intake that hits the date", () => {
 });
 
 check("a deadline that needs an unsafe intake is refused, not fudged", () => {
-  // 6 kg in 12 weeks needs more than the lowest safe intake can deliver.
-  assert.equal(intakeForDeadline({ ...man, weightKg: 90, goal: "lose", targetWeightKg: 84 }, 12), null);
+  // 3 kg a week is not available at any intake a person should eat.
+  assert.equal(intakeForDeadline({ ...man, weightKg: 90, goal: "lose", targetWeightKg: 84 }, 2), null);
+  assert.equal(intakeForDeadline({ ...man, weightKg: 95, goal: "lose", targetWeightKg: 75 }, 8), null);
   // And the same in the other direction: 10 kg of gain in a month is not real.
   assert.equal(intakeForDeadline({ ...man, weightKg: 70, goal: "gain", targetWeightKg: 80 }, 4), null);
+});
+
+check("an ordinary deadline is answered, not refused", () => {
+  /* This one used to be refused. Losing six kilos in twelve weeks is half a
+     kilo a week — the textbook rate — and the model called it impossible,
+     because runaway adaptation had it under-predicting loss badly enough to
+     rule out a perfectly normal goal. */
+  const kcal = intakeForDeadline({ ...man, weightKg: 90, goal: "lose", targetWeightKg: 84 }, 12);
+  assert.ok(kcal, "half a kilo a week was refused as impossible");
+  assert.ok(kcal > 1500 && kcal < 2600, `answered ${kcal} kcal, which is not a sane intake`);
 });
 
 console.log("\nTraining");
