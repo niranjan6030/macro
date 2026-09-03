@@ -35,6 +35,17 @@ export function withUser(handler) {
       return await handler(auth.user.uid, req);
     } catch (e) {
       if (e instanceof NotConfigured) return fail(e.message, 503);
+
+      /* An upstream refusal is not our bug and not a mystery — pass the
+         reason through. These messages come from the AI provider and carry
+         no credentials; swallowing them turns a five-minute diagnosis into
+         an afternoon. */
+      if (e?.upstream) {
+        console.error("[api] upstream", req.method, new URL(req.url).pathname, e.message);
+        return fail(e.message, 502);
+      }
+      if (e?.overloaded) return fail(e.message, 503);
+
       console.error("[api]", req.method, new URL(req.url).pathname, e);
       return fail("Something went wrong. Try again.", 500);
     }
