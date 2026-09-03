@@ -206,6 +206,15 @@ await check("an onion is not breaded onion rings in aioli", () => {
   assert.equal(hit.name, "Onion, raw");
 });
 
+await check("a supermarket listing cannot evict the curated entry", async () => {
+  // Deduping on claimed confidence alone deleted the vetted "Sambar" and
+  // kept a crowd-sourced packet at 50 kcal per 100 g.
+  const { searchAll } = await import("../.check/nutrition/search.js");
+  const hits = await searchAll("sambar", 8);
+  const mine = hits.find((f) => f.source === "custom" && /^sambar$/i.test(f.name));
+  assert.ok(mine, `curated sambar missing from: ${hits.map((f) => f.name).join(", ")}`);
+});
+
 await check("a substring coincidence does not win", () => {
   // "raw" lives inside "prawns", so a plain substring search ranks prawns
   // first for "almonds raw". The matcher has to see past that.
