@@ -56,21 +56,50 @@ export function project(profile, intakeKcal, from = new Date()) {
   const losing = target != null ? target < weightKg : intakeKcal < tdee(profile);
 
   for (let week = 1; week <= MAX_WEEKS; week++) {
+    /* Expenditure has to be computed on the same footing the target was,
+       or the app contradicts itself: bmr() switches to Katch-McArdle the
+       moment a body fat percentage is present, and this loop was handing it
+       an *estimated* one while dailyTargets had used Mifflin-St Jeor for the
+       same person. The two models disagree by enough that somebody sitting
+       exactly at maintenance was forecast to gain three kilos.
+
+       So the estimate is tracked for reporting and withheld from the
+       expenditure model unless the person actually measured it. */
     const current = {
       ...profile,
       weightKg,
-      bodyFatPct: (fatKg / weightKg) * 100,
+      bodyFatPct: profile.bodyFatPct != null ? (fatKg / weightKg) * 100 : null,
     };
 
     /* Expenditure at today's body, discounted by adaptation. Adaptation only
        applies in a deficit — eating above maintenance does not suppress
        metabolism, it raises it, and that is already in the weight term. */
     const raw = tdee(current);
-    const inDeficit = intakeKcal < raw;
-    const adaptation = inDeficit ? MAX_ADAPTATION * (1 - Math.exp(-week / ADAPTATION_WEEKS)) : 0;
+
+    /* Once the goal is reached the deficit stops, because that is what a
+       person does. Carrying it on subtracted seven hundred calories a day
+       for a further eighteen months and forecast someone cutting from 82 kg
+       to 36 kg — a number the chart would have drawn quite happily. */
+    const intake = weeksToGoal != null ? raw : intakeKcal;
+
+    /* Adaptation scales with the size of the deficit, not merely its sign.
+       Treating any shortfall as a full-strength adaptation made the model
+       contradict itself: eating exactly maintenance came out 0.02 kcal under
+       expenditure, which flipped `intake < raw` to true, suppressed
+       expenditure by over one percent, and invented a 203 kcal weekly
+       surplus. That fed back — the phantom surplus added weight, the added
+       weight raised expenditure, and someone sitting on their goal weight
+       was forecast to gain fourteen kilos in two years.
+
+       A deficit of roughly a quarter of maintenance is where the full
+       effect is seen; eating at maintenance produces none. */
+    const shortfall = Math.max(0, (raw - intake) / raw);
+    const severity = Math.min(1, shortfall / 0.25);
+    const adaptation =
+      severity * MAX_ADAPTATION * (1 - Math.exp(-week / ADAPTATION_WEEKS));
     const expenditure = raw * (1 - adaptation);
 
-    const weeklyBalance = (intakeKcal - expenditure) * 7;
+    const weeklyBalance = (intake - expenditure) * 7;
 
     /* Forbes: the fraction of the change that is lean tissue depends on how
        much fat is on the body. p is the energy share going to fat. */
