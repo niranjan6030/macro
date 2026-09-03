@@ -66,8 +66,23 @@ const GEMINI_FALLBACKS = ["gemini-3.6-flash", "gemini-3.5-flash"];
 const busyUntil = new Map();
 const BUSY_FOR_MS = 120_000;
 
+/* Running out of quota is not the same as a model being briefly busy, and
+   treating them alike is why the AI kept "loading and never answering":
+   the daily allowance on the primary model was gone, the cooldown expired
+   every two minutes, and every request went back to it first, paid the
+   refusal, and only then tried the models that could actually answer.
+   A quota refusal is measured in hours, so back off for one. */
+const QUOTA_FOR_MS = 60 * 60_000;
+
 const isBusy = (model) => (busyUntil.get(model) ?? 0) > Date.now();
-const markBusy = (model) => busyUntil.set(model, Date.now() + BUSY_FOR_MS);
+const markBusy = (model, ms = BUSY_FOR_MS) => busyUntil.set(model, Date.now() + ms);
+
+/** Out of allowance, as opposed to momentarily oversubscribed. */
+function isQuotaExhausted(e) {
+  const status = e?.status ?? e?.code;
+  const text = String(e?.message ?? "");
+  return status === 429 || /RESOURCE_EXHAUSTED|exceeded your current quota/i.test(text);
+}
 
 /**
  * Is this a "the model is busy" failure, or a real one?
@@ -255,7 +270,10 @@ async function geminiRound(r) {
     },
   };
 
-  const chain = [GEMINI_MODEL, ...GEMINI_FALLBACKS];
+  /* Deduped: GEMINI_MODEL is configurable, so pointing it at one of the
+     fallbacks would otherwise make the chain try the same model twice and
+     pay the same refusal twice before moving on. */
+  const chain = [...new Set([GEMINI_MODEL, ...GEMINI_FALLBACKS])];
   /* Try the ones not known to be busy first, but keep the rest as a last
      resort — the cooldown is a guess, and being wrong about it should cost a
      slow answer rather than no answer. */
@@ -273,17 +291,38 @@ async function geminiRound(r) {
       break;
     } catch (e) {
       lastError = e;
-      if (!isOverloaded(e)) throw e;
-      markBusy(model);
+      if (!isOverloaded(e)) {
+        /* Not a busy model — something is actually wrong with the request or
+           the credentials. Say what, rather than letting it surface as
+           "Something went wrong": that message sent me hunting through the
+           wrong three subsystems while the upstream had been explaining
+           itself all along. */
+        const status = e?.status ?? e?.code ?? "";
+        const detail = String(e?.message ?? e).slice(0, 300);
+        const wrapped = new Error(`The AI service refused the request${status ? ` (${status})` : ""}: ${detail}`);
+        wrapped.upstream = true;
+        wrapped.cause = e;
+        throw wrapped;
+      }
+      markBusy(model, isQuotaExhausted(e) ? QUOTA_FOR_MS : BUSY_FOR_MS);
     }
   }
   if (!res) {
-    // Every model was busy. Say that, rather than something generic — it is
-    // temporary, and the person should simply try again in a minute.
+    /* Two very different failures used to share one message. A busy model
+       clears in a minute and "try again" is the right advice; an exhausted
+       quota does not clear until the allowance resets, and telling someone
+       to try again in a minute sends them round a loop that cannot succeed.
+       Say which it is. */
+    const outOfQuota = isQuotaExhausted(lastError);
     const e = new Error(
-      "Every Gemini model is busy at the moment. This usually clears in a " + "minute — try again.",
+      outOfQuota
+        ? "Macro AI has used up its daily allowance from Google. It comes back "
+          + "when the quota resets — everything else in the app still works, and "
+          + "food you look up by name or barcode is unaffected."
+        : "Every Gemini model is busy at the moment. This usually clears in a minute — try again.",
     );
     e.overloaded = true;
+    e.outOfQuota = outOfQuota;
     e.cause = lastError;
     throw e;
   }
