@@ -122,7 +122,7 @@ Expect roughly 10-20 seconds for a reply once warm.
 
 
 ```
-ANTHROPIC_API_KEY=      # console.anthropic.com — paid, a fraction of a cent per photo
+ANTHROPIC_API_KEY=      # paid, a fraction of a cent per photo
 GEMINI_API_KEY=         # aistudio.google.com — has a free tier
 ```
 

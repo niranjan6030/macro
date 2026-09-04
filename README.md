@@ -24,7 +24,7 @@ So Macro splits the job:
 
 | Step | Who does it | Why |
 |---|---|---|
-| "That's a chicken biryani, about 320 g" | Claude, via the vision API | Models are genuinely good at recognising food and estimating portions |
+| "That's a chicken biryani, about 320 g" | The vision model | Models are genuinely good at recognising food and estimating portions |
 | "Chicken biryani is 186 kcal / 100 g" | Open Food Facts, USDA, or the built-in Indian table | Real measured composition, not recalled from training data |
 | "320 g × 1.86 = 595 kcal" | `forGrams()`, in one place | Arithmetic belongs in code |
 | "Is 320 g right?" | You, before it is logged | A portion estimate is a guess until a person confirms it |
@@ -188,7 +188,7 @@ Either provider works; whichever key is set is the one used.
 
 | | Key | Cost |
 |---|---|---|
-| Anthropic | `ANTHROPIC_API_KEY` from [console.anthropic.com](https://console.anthropic.com) | Paid, fractions of a cent per photo |
+| Paid provider | `ANTHROPIC_API_KEY` | Paid, fractions of a cent per photo |
 | Google | `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com/apikey) | Free tier, with a rate limit |
 
 **Read this before choosing free.** On Google's free tier your prompts and
