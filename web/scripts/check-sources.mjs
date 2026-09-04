@@ -184,9 +184,49 @@ await check("every offered measure lands on a sane weight", () => {
 /* ------------------------------------------------------------------ */
 
 const { bestIngredient } = await import("../.check/nutrition/match.js");
+const { portionsFor } = await import("../.check/nutrition/portions.js");
 
 const food = (name, extra = {}) => ({
   name, per100g: { kcal: 100 }, source: "openfoodfacts", confidence: "estimated", ...extra,
+});
+
+console.log("\nHousehold measures");
+
+await check("every curated food offers a real measure, not a bare gram box", () => {
+  for (const f of indian.FOODS) {
+    const { portions } = portionsFor(f);
+    assert.ok(portions.length >= 2, `${f.name} offers nothing but grams`);
+    assert.ok(portions[0].grams > 0, `${f.name} leads with a zero-weight measure`);
+  }
+  console.log(`       (${indian.FOODS.length} foods checked)`);
+});
+
+await check("a named dish is not read as one of its ingredients", () => {
+  // "Pizza, cheese" was matched by the cheese rule and offered in 20 g
+  // slices. Order in the KINDS table is load-bearing.
+  const pizza = portionsFor({ name: "Pizza, cheese" }).portions[0];
+  assert.equal(pizza.grams, 100, `a slice of pizza came out at ${pizza.grams} g`);
+});
+
+await check("plurals match, because that is what the databases call things", () => {
+  for (const [name, want] of [
+    ["Almonds", "Handful"], ["Cashews", "Handful"], ["Eggs", "Egg"],
+    ["Grapes", "Fruit"], ["Cookies", "Biscuit"], ["Oat Flakes", "Bowl"],
+  ]) {
+    const { portions, matched } = portionsFor({ name });
+    assert.ok(matched, `"${name}" fell through to the generic guess`);
+    assert.equal(portions[0].label, want, `"${name}" led with ${portions[0].label}`);
+  }
+});
+
+await check("countable food is counted, not weighed", () => {
+  for (const [name, want] of [
+    ["Kfc, biscuit", 12], ["Bread, white", 30], ["Dairy Milk chocolate", 10],
+    ["Cheddar cheese", 20], ["Chicken breast, cooked", 100],
+  ]) {
+    const p = portionsFor({ name }).portions[0];
+    assert.equal(p.grams, want, `${name} led with ${p.label} at ${p.grams} g`);
+  }
 });
 
 console.log("\nIngredient matching");
