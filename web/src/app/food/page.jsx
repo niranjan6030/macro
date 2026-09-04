@@ -247,6 +247,17 @@ function IdentifiedCard({ item, date, onError, onSaved }) {
         <Provenance food={item.food} confidence={item.confidence} />
       </div>
 
+      {item.portion?.count > 0 && (
+        <p className="mt-1 text-[11px] text-[var(--color-mute)]">
+          Looks like about{" "}
+          <span className="num text-[var(--color-chalk)]">
+            {item.portion.count === 0.5 ? "\u00bd" : item.portion.count === 1.5 ? "1\u00bd" : item.portion.count}
+          </span>{" "}
+          {item.portion.measure.toLowerCase()}
+          {item.portion.count > 1 && !/s$/.test(item.portion.measure) ? "s" : ""} — correct it below if not.
+        </p>
+      )}
+
       {item.note && (
         <p className="mt-2 flex gap-1.5 text-xs text-[var(--color-warn)]">
           <Info size={13} className="mt-px shrink-0" /> {item.note}

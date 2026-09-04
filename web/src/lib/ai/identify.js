@@ -1,5 +1,6 @@
 import "server-only";
 import { forGrams } from "@/lib/nutrition/types";
+import { MEASURES } from "@/lib/nutrition/portions";
 import { searchAll } from "@/lib/nutrition/search";
 import { aiConfigured } from "./provider";
 import { runRound } from "./run";
@@ -63,12 +64,32 @@ const TOOL = {
               type: "string",
               description: "The barcode digits, only if clearly readable in the photo.",
             },
-            estimated_grams: {
+            /* Asked as a household measure and a count, because that is a
+               judgement a model can actually make from a photograph. "How
+               many grams of dal is that" is a question nobody can answer by
+               looking, and asking it produced confident numbers that were
+               wrong. "Is that about one katori or two" is answerable, and
+               the grams follow from a table rather than from a guess. */
+            portion_measure: {
+              type: "string",
+              enum: [
+                "katori_small", "katori", "bowl", "plate", "ladle",
+                "tumbler", "glass", "glass_large", "cup",
+                "piece", "small_piece", "biscuit", "slice_bread", "slice_cheese",
+                "slice_cake", "slice_pizza", "square", "bar", "egg", "fruit",
+                "scoop", "palm", "handful", "tbsp", "tsp", "g100",
+              ],
+              description:
+                "Which household measure this portion is best described in. Use the one a " +
+                "person would say out loud: a katori of dal, two rotis, a palm of chicken, " +
+                "a glass of milk. Use g100 only for a packaged item whose weight is printed.",
+            },
+            portion_count: {
               type: "number",
               description:
-                "Edible weight as served, in grams. Use visible references for scale — a " +
-                "dinner plate is about 27 cm, a teaspoon 5 ml, a standard katori 150 ml. " +
-                "Estimate the food only, never the plate or bowl.",
+                "How many of that measure. Halves are fine — 1.5 katori, 2 rotis, 0.5 palm. " +
+                "Use visible references for scale: a dinner plate is about 27 cm across, a " +
+                "katori about 11 cm, a teaspoon 5 ml. Judge the food only, never the vessel.",
             },
             confidence: {
               type: "string",
@@ -84,7 +105,7 @@ const TOOL = {
                 "fried', 'visible ghee', 'sauce on the side'. Omit if there is nothing.",
             },
           },
-          required: ["label", "search_query", "estimated_grams", "confidence"],
+          required: ["label", "search_query", "portion_measure", "portion_count", "confidence"],
         },
       },
     },
@@ -102,8 +123,15 @@ corrupt the result.
 Rules:
 - Break a composite plate into its separate components. Rice, dal and a roti
   on one thali are three entries, not one.
-- Estimate the edible weight as served. A typical restaurant portion of rice
-  is 200-250 g; one roti is 35-45 g; a katori of dal is about 150 g.
+- Describe the portion the way a person would say it out loud, not in grams:
+  a katori of dal, one and a half katori of rice, two rotis, a palm of
+  chicken, a glass of milk, three biscuits. Pick the measure that fits the
+  food and say how many. Halves are fine.
+- Judge the food, never the vessel. A katori is about 11 cm across and a
+  dinner plate about 27 cm — use them for scale, not as the thing measured.
+- Do not convert to grams yourself. The weight of each measure is looked up
+  afterwards, against this specific food, and your arithmetic would only
+  overwrite a figure somebody actually weighed.
 - Use "low" confidence freely. An honest "low" lets the person correct it; a
   confident wrong answer does not.
 - If packaging is visible and legible, report the brand and any barcode. That
@@ -157,14 +185,23 @@ export async function identify(dataUrl) {
   // Look each one up for real. These are independent, so they go together.
   const items = await Promise.all(
     raw.items.slice(0, 8).map(async (item) => {
-      const grams = sane(item.estimated_grams);
       const food = await lookup(item);
+
+      /* The measure the model chose, priced against this specific food where
+         the curated table weighed it — a roti is 40 g, not the generic 50 g
+         a "piece" would otherwise assume. */
+      const portion = resolvePortion(item, food);
+
       return {
         label: item.label,
-        grams,
+        grams: portion.grams,
+        // Carried so the card can say "about 2 rotis" rather than "about
+        // 80 g", and so the person corrects a count they can see rather
+        // than a weight they would have to imagine.
+        portion: { measure: portion.label, count: portion.count },
         confidence: item.confidence ?? "low",
         food,
-        nutrients: food ? forGrams(food.per100g, grams) : null,
+        nutrients: food ? forGrams(food.per100g, portion.grams) : null,
         note: item.note,
       };
     }),
@@ -200,10 +237,39 @@ async function lookup(item) {
 }
 
 /** Portion estimates outside this range are not estimates, they are errors. */
-function sane(g) {
-  const n = typeof g === "number" ? g : Number(g);
-  if (!Number.isFinite(n) || n <= 0) return 100;
-  return Math.round(Math.min(Math.max(n, 1), 2000));
+/**
+ * Turn "about one and a half katori" into grams.
+ *
+ * The model picks a measure and a count; the weight of that measure comes
+ * from the household table, or from the food's own weighed serving when the
+ * curated entry has one. That is the whole reason for asking this way — the
+ * judgement stays with the model and the arithmetic stays here.
+ */
+function resolvePortion(item, food) {
+  const count = sane(item.portion_count, 1, 0.25, 20);
+  const id = typeof item.portion_measure === "string" ? item.portion_measure : "";
+
+  // A food that was actually weighed beats a generic measure of the same kind.
+  const countable = ["piece", "small_piece", "biscuit", "egg", "fruit", "slice_bread"];
+  if (food?.servingG > 0 && countable.includes(id)) {
+    return {
+      grams: clampGrams(food.servingG * count),
+      label: (food.servingLabel ?? "serving").replace(/^1\s+/, ""),
+      count,
+    };
+  }
+
+  const measure = MEASURES[id];
+  if (!measure) return { grams: clampGrams(100 * count), label: "portion", count };
+  return { grams: clampGrams(measure.grams * count), label: measure.label, count };
+}
+
+const clampGrams = (n) => Math.round(Math.min(Math.max(n, 1), 2000));
+
+function sane(v, fallback, lo, hi) {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.max(n, lo), hi);
 }
 
 function parseDataUrl(url) {
