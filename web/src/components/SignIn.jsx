@@ -6,25 +6,30 @@ import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { AuthError, useAuth } from "@/components/AuthProvider";
 
 /**
- * Sign in with Google, Apple or email.
+ * Sign in with Google or email.
  *
- * Three, not one, because the app follows someone for months — losing a year
- * of training history because you cannot remember which button you pressed
- * the first time is the worst failure available here.
+ * Two, not one, because the app follows someone for months — losing a year of
+ * training history because you cannot remember which button you pressed the
+ * first time is the worst failure available here.
  *
- * Phone used to be the fourth. It is gone: it was the only method that cost
- * money per attempt, the only one needing an invisible reCAPTCHA wired to a
- * button elsewhere on the page, and the SMS provider is a third party in the
- * middle of the one flow that must not break. Anyone who signed in that way
- * still exists; they sign in with email against the same account.
+ * Apple was here and is gone. Sign in with Apple cannot be switched on the
+ * way Google can: it needs a paid Apple Developer membership for the Services
+ * ID and the signing key, and without those the provider can be *enabled* in
+ * Firebase while having no client id and no secret — which is exactly the
+ * state it was in. The button rendered, and every person who pressed it got
+ * an error. A sign-in method that cannot succeed is worse than one that is
+ * not offered.
+ *
+ * Phone went earlier, for a different reason: it was the only method that
+ * cost money per attempt. Anyone who signed in either way still has their
+ * account and reaches it with email.
  */
 
 /**
- * The real marks, not lookalikes.
+ * The real mark, not a lookalike.
  *
- * lucide dropped brand icons, and the nearest substitutes were a globe for
- * Google and a piece of fruit for Apple — neither of which is the thing
- * people scan for. Both companies require their own mark on these buttons
+ * lucide dropped brand icons and the nearest substitute was a globe, which is
+ * not the thing people scan for. Google requires its own mark on this button
  * in any case.
  */
 function GoogleMark() {
@@ -50,18 +55,10 @@ function GoogleMark() {
   );
 }
 
-function AppleMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M17.05 12.54c-.02-2.69 2.2-3.98 2.3-4.05-1.25-1.83-3.2-2.08-3.89-2.1-1.65-.17-3.23.97-4.07.97-.84 0-2.13-.95-3.5-.92-1.8.03-3.47 1.05-4.4 2.66-1.87 3.25-.48 8.06 1.35 10.7.89 1.29 1.95 2.74 3.35 2.69 1.34-.06 1.85-.87 3.47-.87s2.08.87 3.5.84c1.44-.03 2.36-1.32 3.24-2.61 1.02-1.5 1.44-2.95 1.47-3.02-.03-.02-2.82-1.08-2.84-4.29zM14.47 4.6c.74-.9 1.24-2.15 1.1-3.4-1.07.05-2.36.71-3.13 1.61-.69.8-1.29 2.07-1.13 3.3 1.2.09 2.41-.61 3.16-1.51z" />
-    </svg>
-  );
-}
 
 export function SignIn() {
   const {
     signInWithGoogle,
-    signInWithApple,
     signInWithEmail,
     createAccount,
     ensureSession,
@@ -127,14 +124,6 @@ export function SignIn() {
           >
             {busy === "google" ? <Loader2 className="animate-spin" size={18} /> : <GoogleMark />}
             Continue with Google
-          </button>
-          <button
-            onClick={() => run("apple", signInWithApple)}
-            disabled={busy !== null}
-            className="btn btn-ghost w-full"
-          >
-            {busy === "apple" ? <Loader2 className="animate-spin" size={18} /> : <AppleMark />}
-            Continue with Apple
           </button>
           <button onClick={() => setMode("email")} className="btn btn-ghost w-full">
             <Mail size={18} /> Continue with email
