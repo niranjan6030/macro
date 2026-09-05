@@ -19,7 +19,8 @@
     "ship": "node scripts/ship.mjs",
     "check:live": "node scripts/check-live.mjs",
     "check:science": "node scripts/check-science.mjs",
-    "check:all": "npm run check && npm run check:sources && npm run check:science && npm run check:schema && npm run check:migration"
+    "check:all": "npm run check && npm run check:sources && npm run check:science && npm run check:schema && npm run check:migration",
+    "check:deep": "node scripts/check-deep.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

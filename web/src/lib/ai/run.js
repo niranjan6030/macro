@@ -358,5 +358,10 @@ async function geminiRound(r) {
 
   const turn = res.candidates?.[0]?.content;
   if (turn) scratch.push(turn);
-  return { text, calls, scratch };
+
+  /* Carried because "no tool call came back" has two very different causes.
+     The model may have declined, or it may have been cut off mid-call by the
+     token ceiling — and the second reads as the first unless the reason
+     travels with the result. */
+  return { text, calls, scratch, finishReason: res.candidates?.[0]?.finishReason ?? null };
 }

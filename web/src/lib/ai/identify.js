@@ -158,12 +158,25 @@ export async function identify(dataUrl) {
       tools: [TOOL],
       // The model must produce a structured record, never prose about the meal.
       forceTool: "record_foods",
-      maxTokens: 1500,
+      /* Eight foods, five fields each, is more output than it looks. At 1500
+         the call was being truncated mid-record, which arrives looking
+         exactly like a model that declined to answer. */
+      maxTokens: 4000,
     });
 
     const call = res.calls.find((c) => c.name === "record_foods");
     if (!call) {
-      return { items: [], notFood: false, message: "Could not read that photo. Try again." };
+      // Truncation and refusal are different problems and deserve different
+      // words — one is worth retrying, the other is not.
+      const cut = res.finishReason === "MAX_TOKENS";
+      console.warn(`[identify] no tool call (finishReason=${res.finishReason ?? "none"})`);
+      return {
+        items: [],
+        notFood: false,
+        message: cut
+          ? "That photo had more in it than the reader could list at once. Try a photo of one plate."
+          : "Could not read that photo. Try again, with the plate square in frame.",
+      };
     }
     raw = call.args;
   } catch (e) {
