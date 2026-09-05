@@ -227,8 +227,8 @@ function IdentifiedCard({ item, date, onError, onSaved }) {
       <div className="card p-4">
         <p className="font-semibold">{item.label}</p>
         <p className="mt-1 text-sm text-[var(--color-mute)]">
-          Recognised, but not in any nutrition database. Add it by hand and it will be there next
-          time.
+          Recognised, but neither the databases nor a recipe estimate could cost it. Describe it
+          below and the numbers will be worked out from its ingredients.
         </p>
       </div>
     );
@@ -246,6 +246,29 @@ function IdentifiedCard({ item, date, onError, onSaved }) {
         </div>
         <Provenance food={item.food} confidence={item.confidence} />
       </div>
+
+      {item.food.ingredients?.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px] text-[var(--color-mute)]">
+            Not in any database — costed from {item.food.ingredients.length} ingredients
+          </summary>
+          <ul className="num mt-1.5 space-y-0.5 text-[11px] text-[var(--color-mute)]">
+            {item.food.ingredients.map((ing, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span className="truncate">
+                  {ing.name}
+                  {!ing.matched && <span className="ml-1 text-[var(--color-warn)]">not found</span>}
+                </span>
+                <span className="shrink-0">{ing.grams} g · {ing.kcal} kcal</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-mute)]">
+            Every ingredient was looked up in a real database and the totals added up here — no
+            calorie figure came from the AI. The recipe is the guess.
+          </p>
+        </details>
+      )}
 
       {item.portion?.count > 0 && (
         <p className="mt-1 text-[11px] text-[var(--color-mute)]">
@@ -785,7 +808,17 @@ function scale(per100g, grams) {
  * data and larger than the model needs — 1280px is plenty to identify a
  * plate of food.
  */
-async function downscale(file, max = 1280, quality = 0.82) {
+/**
+ * Shrink a photo before it leaves the phone.
+ *
+ * 900px, not the 1280 this used to send. A modern camera produces 4-8 MB,
+ * which is slow to upload on mobile data and far more than the model needs
+ * to tell rice from dal — and on the free tier the difference is not
+ * cosmetic: a 1280px photo took longer to read than the request was allowed
+ * to live, so every attempt died at the timeout and reported that the photo
+ * could not be read.
+ */
+async function downscale(file, max = 900, quality = 0.78) {
   const bitmap = await createImageBitmap(file);
   const scaleBy = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");

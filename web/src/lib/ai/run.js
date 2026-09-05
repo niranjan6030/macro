@@ -190,6 +190,10 @@ async function anthropicRound(r) {
 /* ------------------------------------------------------------------ */
 
 async function geminiRound(r) {
+  /* Whether any part of this round carries an image, which changes how long
+     it is reasonable to wait. */
+  const hasImage = Boolean(r?.image);
+
   const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
     /* Do not retry, and do not wait long.
@@ -206,9 +210,15 @@ async function geminiRound(r) {
      * 30 seconds rather than something tighter because a round that calls
      * tools genuinely takes longer than one that does not, and the fallback
      * list is short enough that the worst case stays inside a minute and a
-     * half. */
+     * half.
+     *
+     * A photograph is the exception. Reading an image takes the free tier
+     * far longer than reading a sentence — long enough that a 30 second
+     * ceiling killed every attempt at 29 seconds and reported "could not
+     * read that photo", which is a lie about a request that was still
+     * working. */
     httpOptions: {
-      timeout: 30_000,
+      timeout: hasImage ? 75_000 : 30_000,
       retryOptions: { attempts: 1 },
     },
   });
