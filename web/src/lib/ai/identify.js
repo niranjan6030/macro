@@ -2,6 +2,7 @@ import "server-only";
 import { forGrams } from "@/lib/nutrition/types";
 import { MEASURES } from "@/lib/nutrition/portions";
 import { searchAll } from "@/lib/nutrition/search";
+import { bestIngredient } from "@/lib/nutrition/match";
 import { aiConfigured } from "./provider";
 import { runRound } from "./run";
 
@@ -182,30 +183,42 @@ export async function identify(dataUrl) {
     return { items: [], notFood: true, message: "No food found in that photo." };
   }
 
-  // Look each one up for real. These are independent, so they go together.
-  const items = await Promise.all(
-    raw.items.slice(0, 8).map(async (item) => {
-      const food = await lookup(item);
-
-      /* The measure the model chose, priced against this specific food where
-         the curated table weighed it — a roti is 40 g, not the generic 50 g
-         a "piece" would otherwise assume. */
-      const portion = resolvePortion(item, food);
-
-      return {
-        label: item.label,
-        grams: portion.grams,
-        // Carried so the card can say "about 2 rotis" rather than "about
-        // 80 g", and so the person corrects a count they can see rather
-        // than a weight they would have to imagine.
-        portion: { measure: portion.label, count: portion.count },
-        confidence: item.confidence ?? "low",
-        food,
-        nutrients: food ? forGrams(food.per100g, portion.grams) : null,
-        note: item.note,
-      };
-    }),
+  // Database lookups are independent and cheap, so they go together.
+  const looked = await Promise.all(
+    raw.items.slice(0, 8).map(async (item) => ({ item, food: await lookup(item) })),
   );
+
+  /* Anything nothing matched gets costed from its recipe instead — but that
+     is a whole extra model call each, so it runs one at a time and stops
+     after three. Concurrently with a shared counter would not work: every
+     item would read the budget before any of them had spent it, and a plate
+     of six unknowns would fire six calls. */
+  let budget = 3;
+  for (const row of looked) {
+    if (row.food || budget <= 0) continue;
+    budget -= 1;
+    row.food = await costFromRecipe(row.item);
+  }
+
+  const items = looked.map(({ item, food }) => {
+    /* The measure the model chose, priced against this specific food where
+       the curated table weighed it — a roti is 40 g, not the generic 50 g a
+       "piece" would otherwise assume. */
+    const portion = resolvePortion(item, food);
+
+    return {
+      label: item.label,
+      grams: portion.grams,
+      // Carried so the card can say "about 2 rotis" rather than "about 80 g",
+      // and so the person corrects a count they can see rather than a weight
+      // they would have to imagine.
+      portion: { measure: portion.label, count: portion.count },
+      confidence: item.confidence ?? "low",
+      food,
+      nutrients: food ? forGrams(food.per100g, portion.grams) : null,
+      note: item.note,
+    };
+  });
 
   return { items, notFood: false };
 }
@@ -230,10 +243,45 @@ async function lookup(item) {
     : [item.search_query];
 
   for (const q of queries) {
-    const hits = await searchAll(q, 3).catch(() => []);
-    if (hits.length) return hits[0];
+    const hits = await searchAll(q, 10).catch(() => []);
+    // Not hits[0]: the general ranking puts confidence above closeness, which
+    // is right for browsing and wrong here. Same reasoning as the recipe
+    // estimator, and the same bug — "drumstick" answered with a boiled sweet.
+    const best = bestIngredient(q, hits);
+    if (best) return best;
   }
   return null;
+}
+
+/**
+ * Nothing in any database matched, so work it out from the recipe instead.
+ *
+ * This used to give up and say "add it by hand", which is a strange answer
+ * from an app that has just told you what is on your plate. Amma's sambar
+ * is not in Open Food Facts and never will be; refusing to cost it means the
+ * one meal most worth logging is the one you cannot log.
+ *
+ * The numbers still come from the database — the dish is broken into
+ * ingredients and each one is priced — so this is a longer route to a real
+ * figure rather than a licence for the model to invent one. It is marked as
+ * an estimate, because the recipe is a guess even when the arithmetic is not.
+ */
+async function costFromRecipe(item) {
+  const { estimate } = await import("./estimate");
+  const guess = await estimate(item.label, item.note ?? "").catch(() => null);
+  if (!guess || guess.error || !(guess.per100g?.kcal > 0)) return null;
+
+  return {
+    id: `estimate:${item.search_query}`,
+    name: item.label,
+    brand: null,
+    source: "estimate",
+    confidence: "estimated",
+    per100g: guess.per100g,
+    servingG: null,
+    servingLabel: null,
+    ingredients: guess.ingredients,
+  };
 }
 
 /** Portion estimates outside this range are not estimates, they are errors. */

@@ -1,4 +1,9 @@
 import { withUser, ok, fail, body, str } from "@/lib/api";
+
+/* Reading a photograph on the free tier is slow, and an unrecognised dish
+   costs a second call to work out its recipe. The platform default cuts the
+   request off long before either finishes. */
+export const maxDuration = 120;
 import { identify, visionConfigured } from "@/lib/ai/identify";
 
 /**
