@@ -73,6 +73,7 @@ r = await fetch(`${APP}/api/progress/vault`, { method: "POST", headers: H,
   body: JSON.stringify({ salt: b64(salt), verifier: `${b64(vIv)}.${b64(vC)}`, retentionDays: 180 }) });
 if (r.status !== 200) bad("vault setup", `${r.status}`); else ok("vault created");
 
+let photoId = null;
 const jpeg = Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==", "base64");
 const pIv = wc.getRandomValues(new Uint8Array(12));
 const pC = Buffer.from(await wc.subtle.encrypt({ name: "AES-GCM", iv: pIv }, key, jpeg));
@@ -82,6 +83,7 @@ b = await r.json().catch(() => ({}));
 if (r.status !== 200) bad("photo upload", `${r.status} ${JSON.stringify(b).slice(0, 140)}`);
 else {
   ok(`photo stored, expires ${b.photo?.expires_at}`);
+  photoId = b.photo.id;
   const raw = Buffer.from(await (await fetch(b.photo.url)).arrayBuffer());
   if (raw.equals(jpeg)) bad("ENCRYPTION", "the stored bytes ARE the original image — it was not encrypted");
   else ok("what is stored is not the original image");
@@ -92,10 +94,50 @@ else {
   } catch (e) { bad("decrypt", e.message); }
 }
 
-console.log("\nRetention and barcode");
+console.log("\nRetention");
 r = await fetch(`${APP}/api/progress/purge`);
-if (r.status !== 401) bad("purge", `an unauthenticated call returned ${r.status}, expected 401`);
+if (r.status !== 401) bad("purge auth", `an unauthenticated call returned ${r.status}, expected 401`);
 else ok("the purge endpoint refuses an unauthenticated caller");
+
+r = await fetch(`${APP}/api/progress/purge`, { headers: { authorization: "Bearer definitely-not-the-secret" } });
+if (r.status !== 401) bad("purge auth", `a wrong secret returned ${r.status}, expected 401`);
+else ok("and refuses a wrong secret");
+
+/* The sweep itself, for real: age the photo just uploaded past its expiry,
+   run the cron, and check both halves of the promise — that the bytes are
+   gone from storage, and that the row survives carrying the date and weight
+   the progress chart is drawn from. Testing only the first half would pass
+   on a sweep that deleted everything. */
+if (env.CRON_SECRET && env.SUPABASE_SERVICE_ROLE_KEY && photoId) {
+  const db = {
+    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    "content-type": "application/json",
+    Prefer: "return=representation",
+  };
+  const U = env.NEXT_PUBLIC_SUPABASE_URL;
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  await fetch(`${U}/rest/v1/progress_photos?id=eq.${photoId}`,
+    { method: "PATCH", headers: db, body: JSON.stringify({ expires_at: yesterday }) });
+
+  const swept = await (await fetch(`${APP}/api/progress/purge`,
+    { headers: { authorization: `Bearer ${env.CRON_SECRET}` } })).json();
+  if (!(swept.purged > 0)) bad("purge", `the sweep reported ${JSON.stringify(swept)}`);
+  else ok(`the sweep ran and purged ${swept.purged}`);
+
+  const [row] = await (await fetch(
+    `${U}/rest/v1/progress_photos?id=eq.${photoId}&select=path,iv,purged_at,weight_kg,on_date`,
+    { headers: db })).json();
+  if (!row) bad("purge", "the row was deleted, not purged — the chart data is gone");
+  else if (row.path !== null || row.iv !== null) bad("purge", "the bytes were not released");
+  else if (row.purged_at === null) bad("purge", "the row was not marked purged");
+  else if (row.weight_kg === null || row.on_date === null) bad("purge", "the row lost the data worth keeping");
+  else ok(`bytes released, row survives with ${row.weight_kg} kg on ${row.on_date}`);
+} else {
+  console.log("  note  CRON_SECRET not in .env.local, so the sweep itself is untested");
+}
+
+console.log("\nBarcode");
 
 r = await fetch(`${APP}/api/food/barcode/8901262010320`, { headers: H });
 b = await r.json().catch(() => ({}));
