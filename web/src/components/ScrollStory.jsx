@@ -47,7 +47,11 @@ export function ScrollStory({ data }) {
   ];
 
   return (
-    <div className="space-y-[46svh] pb-[30svh]">
+    /* Half a screen of nothing between each panel made the day take six
+       screens of scrolling to read, on a screen people open ten times a day.
+       The reveal is worth keeping — it is what makes the numbers land one at
+       a time — but it does not need a viewport of runway to do it. */
+    <div className="space-y-[14svh] pb-[8svh]">
       <Panel wide>
         <ActivityRings rings={rings}>
           <span className="text-center">
@@ -62,7 +66,7 @@ export function ScrollStory({ data }) {
             </span>
           </span>
         </ActivityRings>
-        <div className="mx-auto max-w-xs rounded-2xl bg-black/55 p-4 backdrop-blur-sm">
+        <div className="card mx-auto max-w-xs p-4">
           <RingKey rings={rings} />
           <div className="mt-3 border-t border-[var(--color-line)] pt-3">
             <p className="text-[12px] leading-relaxed text-[var(--color-mute)]">
@@ -173,10 +177,17 @@ function Panel({ children, wide }) {
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([e]) => setShown(e.isIntersecting),
+      /* Latched: once a panel has been read it stays readable. The observer
+         used to toggle both ways, so scrolling past a panel faded it back to
+         twelve percent — the day was legible only one panel at a time, and
+         anything you had already gone by went dark behind you. The reveal is
+         worth having on the way down; taking it back is not. */
+      ([e]) => { if (e.isIntersecting) setShown(true); },
       // Fires when the panel reaches the middle band of the screen, so the
       // text arrives as the figure behind it is well in view.
-      { rootMargin: "-25% 0px -35% 0px" },
+      // Tighter than the old -25/-35, which was tuned for panels a whole
+      // screen apart and would have left several visible at once now.
+      { rootMargin: "-15% 0px -20% 0px" },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -185,10 +196,16 @@ function Panel({ children, wide }) {
   return (
     <section
       ref={ref}
-      className={`min-h-[54svh] ${wide ? "space-y-6" : "max-w-xs space-y-2"}`}
+      className={`min-h-[30svh] ${wide ? "space-y-6" : "max-w-xs space-y-2"}`}
       style={{
-        opacity: shown ? 1 : 0.12,
-        transform: shown ? "translateY(0)" : "translateY(14px)",
+        /* Resting at 0.12 meant a panel the observer had not yet fired for
+           was effectively invisible — and it does not always fire: jump to
+           the end of the page, or come back to a restored scroll position,
+           and panels get skipped entirely. A reveal is decoration; being
+           able to read your own day is not. So the resting state is legible
+           and the reveal is the last of the contrast, not all of it. */
+        opacity: shown ? 1 : 0.55,
+        transform: shown ? "translateY(0)" : "translateY(10px)",
         transition: "opacity 600ms ease, transform 600ms cubic-bezier(.2,.8,.2,1)",
       }}
     >

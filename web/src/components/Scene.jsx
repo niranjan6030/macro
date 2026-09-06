@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import { buildStar, shadeStar } from "@/lib/three/star";
 import { dustMaterial, dustSprite, surfaceDust } from "@/lib/three/dust";
 
@@ -33,6 +35,9 @@ const SCROLL_TO_RADIANS = 0.0042;
 const RADIUS = [1.0, 1.02, 0.34];
 
 export function Scene({ className }) {
+  const path = usePathname();
+  const { user } = useAuth();
+
   const host = useRef(null);
 
   useEffect(() => {
@@ -202,5 +207,27 @@ export function Scene({ className }) {
     };
   }, []);
 
-  return <div ref={host} aria-hidden className={className} />;
+  /* How far forward the star is allowed to come.
+     On the landing page it is the thing you are looking at. On a screen with
+     numbers on it, it is not: at full strength it sat directly behind the
+     calorie ring and made a four-digit figure hard to read. Receding it costs
+     nothing — the identity survives at a fifth of the brightness — and it
+     gives the content the contrast it was designed for. */
+  const showcase = !user && (path === "/" || path === "/account");
+
+  return (
+    <div
+      ref={host}
+      aria-hidden
+      className={className}
+      style={{
+        /* A tenth, not a fifth. At 0.22 the dust still read through a panel
+           sitting on top of it, and a calorie figure had texture crawling
+           over it. Ten percent is enough for the page to feel like it has
+           depth and not enough to compete with a number. */
+        opacity: showcase ? 1 : 0.1,
+        transition: "opacity 700ms cubic-bezier(0.2, 0, 0, 1)",
+      }}
+    />
+  );
 }
