@@ -51,7 +51,13 @@ export function ScrollStory({ data }) {
        screens of scrolling to read, on a screen people open ten times a day.
        The reveal is worth keeping — it is what makes the numbers land one at
        a time — but it does not need a viewport of runway to do it. */
-    <div className="space-y-[14svh] pb-[8svh]">
+    /* Viewport-relative below md, fixed above it.
+       The gaps are a proportion of screen height, and the content in them is
+       not — so a taller window stretched the spacing and left the panels
+       marooned in it. On a phone the two are about the same size and svh is
+       exactly right; on a desktop the panel stays 150px tall while the gap
+       grows past 200, which is how you get a screenful of almost nothing. */
+    <div className="space-y-[14svh] pb-[8svh] md:space-y-20 md:pb-10">
       <Panel wide>
         <ActivityRings rings={rings}>
           <span className="text-center">
@@ -196,7 +202,7 @@ function Panel({ children, wide }) {
   return (
     <section
       ref={ref}
-      className={`min-h-[30svh] ${wide ? "space-y-6" : "max-w-xs space-y-2"}`}
+      className={`min-h-[30svh] md:min-h-0 ${wide ? "space-y-6" : "max-w-xs space-y-2"}`}
       style={{
         /* Resting at 0.12 meant a panel the observer had not yet fired for
            was effectively invisible — and it does not always fire: jump to
