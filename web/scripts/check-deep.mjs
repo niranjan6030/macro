@@ -144,17 +144,49 @@ b = await r.json().catch(() => ({}));
 if (r.status !== 200 || !b.food?.name) bad("barcode", `${r.status} ${JSON.stringify(b).slice(0, 100)}`);
 else ok(`barcode: ${b.food.name}`);
 
-try {
-  const { initializeApp, cert } = await import("firebase-admin/app");
-  const { getAuth } = await import("firebase-admin/auth");
-  initializeApp({ credential: cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT)) });
-  const auth = getAuth();
-  let n = 0;
-  for (const u of (await auth.listUsers(1000)).users) {
-    if (/^deep-\d+@example\.com$/.test(u.email ?? "")) { await auth.deleteUser(u.uid); n++; }
+/**
+ * Delete the throwaway accounts *and* the rows they wrote.
+ *
+ * Removing the Firebase user on its own leaves every Supabase row it created
+ * behind, keyed to a uid that no longer exists. Ten runs of this suite left
+ * more orphaned profiles than the app had real ones, which makes the
+ * database useless for spotting anything at a glance.
+ */
+async function cleanUp(pattern) {
+  try {
+    const { initializeApp, cert } = await import("firebase-admin/app");
+    const { getAuth } = await import("firebase-admin/auth");
+    initializeApp({ credential: cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT)) });
+    const auth = getAuth();
+
+    const doomed = (await auth.listUsers(1000)).users.filter((u) => pattern.test(u.email ?? ""));
+    for (const u of doomed) await auth.deleteUser(u.uid);
+
+    const db = {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "content-type": "application/json",
+    };
+    // Children before parents, so nothing is left pointing at a missing row.
+    const tables = ["workout_sets", "workouts", "diary_entries", "days", "measurements",
+                    "progress_photos", "custom_foods", "custom_exercises", "photo_vault",
+                    "coach_notes", "profiles"];
+    let rows = 0;
+    for (const u of doomed) {
+      for (const t of tables) {
+        const res = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${t}?uid=eq.${u.uid}`,
+          { method: "DELETE", headers: { ...db, Prefer: "return=representation" } });
+        const gone = await res.json().catch(() => []);
+        if (Array.isArray(gone)) rows += gone.length;
+      }
+    }
+    ok(`cleaned up ${doomed.length} account(s) and ${rows} row(s)`);
+  } catch (e) {
+    console.log(`  note  cleanup failed: ${String(e.message ?? e).slice(0, 80)}`);
   }
-  ok(`cleaned up ${n} throwaway account(s)`);
-} catch { console.log("  note  could not clean up the throwaway accounts"); }
+}
+
+await cleanUp(/^deep-\d+@example\.com$/);
 
 console.log(fail.length ? `\n${fail.length} FAILURE(S): ${fail.join(", ")}\n` : "\nAll deep checks passed.\n");
 process.exit(fail.length ? 1 : 0);
