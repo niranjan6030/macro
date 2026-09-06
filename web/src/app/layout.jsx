@@ -54,13 +54,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={sans.variable}>
       <body>
-        {/* The star, behind every screen. Nothing feeds it and nothing reads
-            from it — it turns with the scrollbar and that is all it does. */}
-        <Scene className="pointer-events-none fixed inset-0 -z-20" />
         <Grain />
         <Frame />
         <ServiceWorker />
         <AuthProvider>
+          {/* Inside the provider, because how bright the star should be
+              depends on whether there is anything in front of it. */}
+          <Scene className="pointer-events-none fixed inset-0 -z-20" />
           <RequireProfile>
             <main className="safe-top mx-auto w-full max-w-lg px-4">{children}</main>
           </RequireProfile>
