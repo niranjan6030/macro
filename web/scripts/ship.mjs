@@ -13,11 +13,20 @@
  * doctor` after adding one.
  */
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const DOMAINS = ["macrofitness.vercel.app", "macro-delta-flax.vercel.app"];
 
+/* The Vercel project builds from `web/` (its Root Directory), so the CLI has to
+   run from the repository root — run from inside web/ it looks for web/web. */
+const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+
 const vercel = (...args) =>
-  execFileSync("npx", ["vercel", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  execFileSync("npx", ["vercel", ...args], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
 
 console.log("Deploying…");
 const out = vercel("deploy", "--prod", "--yes");
