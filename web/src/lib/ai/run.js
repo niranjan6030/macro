@@ -23,7 +23,9 @@ import { provider } from "./provider";
  *     `raw` back in as `previous` and never looks inside it.
  */
 
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
+/* No default: which model answers is deployment configuration, not code.
+   provider() only selects Anthropic when ANTHROPIC_MODEL is set. */
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL;
 /* Flash rather than Pro: this is a per-message cost on a free tier with a
    request-per-minute cap, and the work is short.
  *

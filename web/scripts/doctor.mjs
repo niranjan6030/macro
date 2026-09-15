@@ -225,8 +225,10 @@ if (!url || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
 /* ------------------------------------------------------------------ */
 console.log("\n\x1b[1mOptional\x1b[0m");
 
-if (set("ANTHROPIC_API_KEY")) ok("Anthropic — photo reader, Macro AI and the weekly review are on");
-else if (set("GEMINI_API_KEY")) {
+if (set("ANTHROPIC_API_KEY") && set("ANTHROPIC_MODEL")) ok("Anthropic — photo reader, Macro AI and the weekly review are on");
+else if (set("ANTHROPIC_API_KEY") && !set("GEMINI_API_KEY")) {
+  info("ANTHROPIC_API_KEY is set but ANTHROPIC_MODEL is not — AI features stay off until it is.");
+} else if (set("GEMINI_API_KEY")) {
   ok("Gemini — photo reader, Macro AI and the weekly review are on");
   info("On Google's free tier your prompts may be used to train their models.");
 } else {

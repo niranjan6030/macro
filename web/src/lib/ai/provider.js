@@ -20,7 +20,9 @@ import "server-only";
  */
 
 export function provider() {
-  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  // Anthropic needs a model ID as well as a key. With only the key, fall
+  // through to Gemini or "none" rather than failing on the first photo.
+  if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL) return "anthropic";
   if (process.env.GEMINI_API_KEY) return "gemini";
   return "none";
 }

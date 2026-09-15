@@ -188,7 +188,7 @@ Either provider works; whichever key is set is the one used.
 
 | | Key | Cost |
 |---|---|---|
-| Paid provider | `ANTHROPIC_API_KEY` | Paid, fractions of a cent per photo |
+| Paid provider | `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` (the model ID) | Paid, fractions of a cent per photo |
 | Google | `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com/apikey) | Free tier, with a rate limit |
 
 **Read this before choosing free.** On Google's free tier your prompts and

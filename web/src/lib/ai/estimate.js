@@ -111,7 +111,7 @@ export async function estimate(dish, description) {
       serves: 1,
       totalGrams: 0,
       error:
-        "Estimating needs an AI key — ANTHROPIC_API_KEY, or GEMINI_API_KEY for " +
+        "Estimating needs an AI key — ANTHROPIC_API_KEY with ANTHROPIC_MODEL, or GEMINI_API_KEY for " +
         "Google's free tier. Until then, enter the panel by hand.",
     };
   }

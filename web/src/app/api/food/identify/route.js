@@ -17,7 +17,7 @@ import { identify, visionConfigured } from "@/lib/ai/identify";
 export const POST = withUser(async (_uid, req) => {
   if (!visionConfigured()) {
     return fail(
-      "Photo recognition is not switched on. Set ANTHROPIC_API_KEY or GEMINI_API_KEY, or search for the food by name.",
+      "Photo recognition is not switched on. Set ANTHROPIC_API_KEY with ANTHROPIC_MODEL, or GEMINI_API_KEY, or search for the food by name.",
       503,
     );
   }

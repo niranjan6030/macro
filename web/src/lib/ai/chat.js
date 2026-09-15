@@ -107,7 +107,7 @@ export async function reply(history, context) {
     return {
       text:
         "Macro AI is not switched on for this deployment. It needs an " +
-        "ANTHROPIC_API_KEY, or a GEMINI_API_KEY for Google's free tier — " +
+        "ANTHROPIC_API_KEY with ANTHROPIC_MODEL, or a GEMINI_API_KEY for Google's free tier — " +
         "see README, section 3.",
       lookups: [],
     };

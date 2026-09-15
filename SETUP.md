@@ -123,6 +123,7 @@ Expect roughly 10-20 seconds for a reply once warm.
 
 ```
 ANTHROPIC_API_KEY=      # paid, a fraction of a cent per photo
+ANTHROPIC_MODEL=        # the model ID, from console.anthropic.com → Models
 GEMINI_API_KEY=         # aistudio.google.com — has a free tier
 ```
 
